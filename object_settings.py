@@ -1,9 +1,31 @@
 """Object-level settings shown in the Clone Fields cloner panel."""
 
 import bpy
-from bpy.props import BoolProperty, FloatProperty, IntProperty, PointerProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, PointerProperty
 
 from . import modifier_inputs, properties, source_management
+
+
+DISTRIBUTION_MODE_ITEMS = (
+    ("GRID", "Grid", "Grid distribution"),
+    ("LINEAR", "Linear", "Linear distribution"),
+    ("RADIAL", "Radial", "Radial distribution"),
+)
+DISTRIBUTION_MODE_VALUES = {
+    "GRID": 0,
+    "LINEAR": 1,
+    "RADIAL": 2,
+}
+RADIAL_AXIS_ITEMS = (
+    ("Z", "Z", "Rotate around Z"),
+    ("X", "X", "Rotate around X"),
+    ("Y", "Y", "Rotate around Y"),
+)
+RADIAL_AXIS_VALUES = {
+    "Z": 0,
+    "X": 1,
+    "Y": 2,
+}
 
 
 def _sync_source(self, context) -> None:
@@ -25,6 +47,15 @@ def _sync_source(self, context) -> None:
         return
 
     source_management.assign_source(obj, source)
+
+
+def _sync_distribution_mode(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_DISTRIBUTION_MODE,
+        DISTRIBUTION_MODE_VALUES[self.distribution_mode],
+    )
+    self.id_data[properties.PROP_CLONER_MODE] = self.distribution_mode
 
 
 def _sync_count_x(self, context) -> None:
@@ -49,6 +80,66 @@ def _sync_spacing_y(self, context) -> None:
 
 def _sync_spacing_z(self, context) -> None:
     _sync_modifier_value(self, properties.SOCKET_SPACING_Z, self.spacing_z)
+
+
+def _sync_linear_count(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_LINEAR_COUNT, self.linear_count)
+
+
+def _sync_linear_spacing(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_LINEAR_SPACING, self.linear_spacing)
+
+
+def _sync_linear_direction_x(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_LINEAR_DIRECTION_X,
+        self.linear_direction_x,
+    )
+
+
+def _sync_linear_direction_y(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_LINEAR_DIRECTION_Y,
+        self.linear_direction_y,
+    )
+
+
+def _sync_linear_direction_z(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_LINEAR_DIRECTION_Z,
+        self.linear_direction_z,
+    )
+
+
+def _sync_radial_count(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_RADIAL_COUNT, self.radial_count)
+
+
+def _sync_radial_radius(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_RADIAL_RADIUS, self.radial_radius)
+
+
+def _sync_radial_arc(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_RADIAL_ARC, self.radial_arc)
+
+
+def _sync_radial_axis(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_RADIAL_AXIS,
+        RADIAL_AXIS_VALUES[self.radial_axis],
+    )
+
+
+def _sync_radial_align(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_RADIAL_ALIGN,
+        self.radial_align,
+    )
 
 
 def _sync_source_position_x(self, context) -> None:
@@ -100,6 +191,12 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         type=bpy.types.Object,
         update=_sync_source,
     )
+    distribution_mode: EnumProperty(
+        name="Mode",
+        items=DISTRIBUTION_MODE_ITEMS,
+        default="GRID",
+        update=_sync_distribution_mode,
+    )
     count_x: IntProperty(
         name=properties.SOCKET_COUNT_X,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_COUNT_X],
@@ -141,6 +238,67 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         subtype="DISTANCE",
         unit="LENGTH",
         update=_sync_spacing_z,
+    )
+    linear_count: IntProperty(
+        name="Count",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_LINEAR_COUNT],
+        min=1,
+        update=_sync_linear_count,
+    )
+    linear_spacing: FloatProperty(
+        name="Spacing",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_LINEAR_SPACING],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_linear_spacing,
+    )
+    linear_direction_x: FloatProperty(
+        name=properties.SOCKET_LINEAR_DIRECTION_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_LINEAR_DIRECTION_X],
+        update=_sync_linear_direction_x,
+    )
+    linear_direction_y: FloatProperty(
+        name=properties.SOCKET_LINEAR_DIRECTION_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_LINEAR_DIRECTION_Y],
+        update=_sync_linear_direction_y,
+    )
+    linear_direction_z: FloatProperty(
+        name=properties.SOCKET_LINEAR_DIRECTION_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_LINEAR_DIRECTION_Z],
+        update=_sync_linear_direction_z,
+    )
+    radial_count: IntProperty(
+        name="Count",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_RADIAL_COUNT],
+        min=1,
+        update=_sync_radial_count,
+    )
+    radial_radius: FloatProperty(
+        name=properties.SOCKET_RADIAL_RADIUS,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_RADIAL_RADIUS],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_radial_radius,
+    )
+    radial_arc: FloatProperty(
+        name=properties.SOCKET_RADIAL_ARC,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_RADIAL_ARC],
+        subtype="ANGLE",
+        unit="ROTATION",
+        update=_sync_radial_arc,
+    )
+    radial_axis: EnumProperty(
+        name="Axis",
+        items=RADIAL_AXIS_ITEMS,
+        default="Z",
+        update=_sync_radial_axis,
+    )
+    radial_align: BoolProperty(
+        name=properties.SOCKET_RADIAL_ALIGN,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_RADIAL_ALIGN],
+        update=_sync_radial_align,
     )
     source_position_x: FloatProperty(
         name=properties.SOCKET_SOURCE_POSITION_X,

@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import bpy
+from mathutils import Vector
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -87,6 +88,38 @@ def _has_vertex_near(
     )
 
 
+def _min_vertex_distance(vertices: list[tuple[float, float, float]]) -> float:
+    distances = []
+    for index, first in enumerate(vertices):
+        for second in vertices[index + 1 :]:
+            distances.append(
+                sum((first[axis] - second[axis]) ** 2 for axis in range(3)) ** 0.5
+            )
+    return min(distances)
+
+
+def _modifier_input_id(
+    inputs_module,
+    modifier: bpy.types.NodesModifier,
+    socket_name: str,
+) -> str:
+    identifier = inputs_module.get_modifier_input_identifier(modifier, socket_name)
+    assert identifier is not None
+    return identifier
+
+
+def _set_modifier_mode(
+    cloner: bpy.types.Object,
+    modifier: bpy.types.NodesModifier,
+    mode_id: str,
+    mode_value: int,
+) -> None:
+    modifier[mode_id] = mode_value
+    cloner.update_tag()
+    modifier.node_group.update_tag()
+    bpy.context.view_layer.update()
+
+
 def main() -> None:
     sys.path.insert(0, str(PACKAGE_PARENT))
 
@@ -95,6 +128,8 @@ def main() -> None:
     inputs = importlib.import_module(f"{REPO_ROOT.name}.modifier_inputs")
     props = importlib.import_module(f"{REPO_ROOT.name}.properties")
     sources = importlib.import_module(f"{REPO_ROOT.name}.source_management")
+    guides = importlib.import_module(f"{REPO_ROOT.name}.viewport_guides")
+    gizmos = importlib.import_module(f"{REPO_ROOT.name}.gizmos")
 
     try:
         bpy.ops.mesh.primitive_cube_add()
@@ -135,19 +170,72 @@ def main() -> None:
             for item in modifier.node_group.interface.items_tree
             if getattr(item, "item_type", None) == "PANEL"
         }
-        assert {"Count", "Spacing", "Source Transform", "Position", "Rotation", "Scale"} <= panel_names
+        assert {
+            "Distribution",
+            "Grid",
+            "Count",
+            "Spacing",
+            "Linear",
+            "Direction",
+            "Radial",
+            "Source Transform",
+            "Position",
+            "Rotation",
+            "Scale",
+        } <= panel_names
         for item in modifier.node_group.interface.items_tree:
             if (
                 getattr(item, "item_type", None) == "SOCKET"
                 and getattr(item, "in_out", None) == "INPUT"
                 and item.name != props.SOCKET_GEOMETRY
             ):
-                assert not item.hide_in_modifier
+                assert item.hide_in_modifier
         assert len(modifier.node_group.nodes) >= 12
+        assert cloner.clone_fields_cloner.distribution_mode == "GRID"
 
+        mode_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_DISTRIBUTION_MODE,
+        )
         count_x_id = inputs.get_modifier_input_identifier(modifier, props.SOCKET_COUNT_X)
         spacing_z_id = inputs.get_modifier_input_identifier(modifier, props.SOCKET_SPACING_Z)
         source_id = inputs.get_modifier_input_identifier(modifier, props.SOCKET_SOURCE_OBJECT)
+        linear_count_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_LINEAR_COUNT,
+        )
+        linear_spacing_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_LINEAR_SPACING,
+        )
+        linear_direction_x_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_LINEAR_DIRECTION_X,
+        )
+        linear_direction_y_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_LINEAR_DIRECTION_Y,
+        )
+        linear_direction_z_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_LINEAR_DIRECTION_Z,
+        )
+        radial_count_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_RADIAL_COUNT,
+        )
+        radial_radius_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_RADIAL_RADIUS,
+        )
+        radial_arc_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_RADIAL_ARC,
+        )
+        radial_axis_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_RADIAL_AXIS,
+        )
         rotation_z_id = inputs.get_modifier_input_identifier(
             modifier,
             props.SOCKET_SOURCE_ROTATION_Z,
@@ -161,17 +249,67 @@ def main() -> None:
             props.SOCKET_SOURCE_POSITION_Y,
         )
 
+        assert mode_id is not None
         assert count_x_id is not None
         assert spacing_z_id is not None
         assert source_id is not None
+        assert linear_count_id is not None
+        assert linear_spacing_id is not None
+        assert linear_direction_x_id is not None
+        assert linear_direction_y_id is not None
+        assert linear_direction_z_id is not None
+        assert radial_count_id is not None
+        assert radial_radius_id is not None
+        assert radial_arc_id is not None
+        assert radial_axis_id is not None
         assert rotation_z_id is not None
         assert scale_x_id is not None
         assert position_y_id is not None
 
+        assert modifier[mode_id] == 0
         assert modifier[count_x_id] == 2
         assert modifier[spacing_z_id] == 2.5
         assert modifier[source_id] == source
         assert _evaluated_vertex_count(cloner) > 0
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 12
+        assert max(abs(value) for value in _evaluated_bounds_center(cloner)) < 0.0001
+
+        cloner.clone_fields_cloner.distribution_mode = "LINEAR"
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[mode_id] == 1
+
+        modifier[linear_count_id] = 4
+        modifier[linear_spacing_id] = 1.25
+        modifier[linear_direction_x_id] = 0.0
+        modifier[linear_direction_y_id] = 1.0
+        modifier[linear_direction_z_id] = 0.0
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 4
+        linear_bounds = _evaluated_bounds_size(cloner)
+        assert linear_bounds[1] > linear_bounds[0]
+
+        modifier[radial_count_id] = 6
+        modifier[radial_radius_id] = 3.0
+        modifier[radial_arc_id] = 6.283185307179586
+        modifier[radial_axis_id] = 0
+        modifier[mode_id] = 2
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 6
+        radial_bounds = _evaluated_bounds_size(cloner)
+        assert radial_bounds[0] > linear_bounds[0]
+        assert radial_bounds[1] > linear_bounds[0]
+
+        cloner.clone_fields_cloner.distribution_mode = "GRID"
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[mode_id] == 0
         source_matrix = source.matrix_world.copy()
         original_bounds = _evaluated_bounds_size(cloner)
         original_center = _evaluated_bounds_center(cloner)
@@ -203,6 +341,38 @@ def main() -> None:
         assert source.hide_get()
         assert source.hide_render
 
+        original_vertex_count = _evaluated_vertex_count(cloner)
+        bpy.ops.object.select_all(action="DESELECT")
+        cloner.select_set(True)
+        bpy.context.view_layer.objects.active = cloner
+        bpy.ops.object.duplicate()
+        duplicated_cloner = bpy.context.object
+        assert duplicated_cloner != cloner
+        assert inputs.is_cloner_object(duplicated_cloner)
+        sources.sync_all_source_visibility()
+        bpy.context.view_layer.update()
+        assert _evaluated_vertex_count(cloner) == original_vertex_count
+        assert _evaluated_vertex_count(duplicated_cloner) > 0
+        duplicate_sources = [
+            child
+            for child in duplicated_cloner.children
+            if not inputs.is_cloner_object(child)
+        ]
+        assert duplicate_sources
+        assert all(child.hide_get() for child in duplicate_sources)
+        duplicate_modifier = duplicated_cloner.modifiers["Cloner"]
+        original_collection = inputs.get_modifier_input(
+            modifier,
+            props.SOCKET_SOURCE_COLLECTION,
+        )
+        duplicate_collection = inputs.get_modifier_input(
+            duplicate_modifier,
+            props.SOCKET_SOURCE_COLLECTION,
+        )
+        assert original_collection is not None
+        assert duplicate_collection is not None
+        assert original_collection != duplicate_collection
+
         bpy.ops.mesh.primitive_cube_add(location=(6.0, 0.0, 0.0))
         second_source = bpy.context.object
         second_source.name = "Convert Source"
@@ -213,8 +383,8 @@ def main() -> None:
         )
         assert second_result == {"FINISHED"}, second_result
         second_cloner = bpy.context.object
-        assert second_cloner.name == "Cloner.001"
-        assert second_cloner.data.name == "Clone Fields Output.001"
+        assert second_cloner.name.startswith("Cloner")
+        assert second_cloner.data.name.startswith("Clone Fields Output")
         assert second_cloner.display_type == "TEXTURED"
         assert second_source.parent == second_cloner
         assert _evaluated_instance_count() > 0
@@ -263,6 +433,228 @@ def main() -> None:
         rotation_probe_cloner.clone_fields_cloner.source_rotation_z = 1.5707963267948966
         rotation_probe_vertices = _evaluated_vertices(rotation_probe_cloner)
         assert _has_vertex_near(rotation_probe_vertices, (0.0, 1.0, 0.0))
+
+        radial_point_mesh = bpy.data.meshes.new("Radial Point Mesh")
+        radial_point_mesh.from_pydata([(0.0, 0.0, 0.0)], [], [])
+        radial_point_mesh.update()
+        radial_point_source = bpy.data.objects.new("Radial Point Source", radial_point_mesh)
+        bpy.context.collection.objects.link(radial_point_source)
+        bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=radial_point_source.name,
+            count_x=1,
+            count_y=1,
+            count_z=1,
+        )
+        radial_point_cloner = bpy.context.object
+        radial_point_modifier = radial_point_cloner.modifiers["Cloner"]
+        radial_point_mode_id = _modifier_input_id(
+            inputs,
+            radial_point_modifier,
+            props.SOCKET_DISTRIBUTION_MODE,
+        )
+        radial_point_count_id = _modifier_input_id(
+            inputs,
+            radial_point_modifier,
+            props.SOCKET_RADIAL_COUNT,
+        )
+        radial_point_radius_id = _modifier_input_id(
+            inputs,
+            radial_point_modifier,
+            props.SOCKET_RADIAL_RADIUS,
+        )
+        radial_point_arc_id = _modifier_input_id(
+            inputs,
+            radial_point_modifier,
+            props.SOCKET_RADIAL_ARC,
+        )
+        radial_point_modifier[radial_point_count_id] = 8
+        radial_point_modifier[radial_point_radius_id] = 2.0
+        radial_point_modifier[radial_point_arc_id] = 6.283185307179586
+        _set_modifier_mode(radial_point_cloner, radial_point_modifier, radial_point_mode_id, 2)
+        radial_point_vertices = _evaluated_vertices(radial_point_cloner)
+        assert len(radial_point_vertices) == 8
+        assert _min_vertex_distance(radial_point_vertices) > 0.25
+        assert _has_vertex_near(radial_point_vertices, (2.0, 0.0, 0.0))
+        assert _has_vertex_near(radial_point_vertices, (1.41421356, 1.41421356, 0.0))
+
+        radial_point_modifier[radial_point_arc_id] = 5.235987755982989
+        radial_point_cloner.update_tag()
+        radial_point_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        radial_point_vertices = _evaluated_vertices(radial_point_cloner)
+        assert len(radial_point_vertices) == 8
+        assert _min_vertex_distance(radial_point_vertices) > 0.25
+        assert _has_vertex_near(radial_point_vertices, (-0.261052, -1.98289, 0.0), 0.0001)
+
+        radial_rotation_mesh = bpy.data.meshes.new("Radial Rotation Mesh")
+        radial_rotation_mesh.from_pydata([(0.0, 0.5, 0.0)], [], [])
+        radial_rotation_mesh.update()
+        radial_rotation_source = bpy.data.objects.new(
+            "Radial Rotation Source",
+            radial_rotation_mesh,
+        )
+        bpy.context.collection.objects.link(radial_rotation_source)
+        bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=radial_rotation_source.name,
+            count_x=1,
+            count_y=1,
+            count_z=1,
+        )
+        radial_rotation_cloner = bpy.context.object
+        radial_rotation_modifier = radial_rotation_cloner.modifiers["Cloner"]
+        radial_rotation_mode_id = _modifier_input_id(
+            inputs,
+            radial_rotation_modifier,
+            props.SOCKET_DISTRIBUTION_MODE,
+        )
+        radial_rotation_count_id = _modifier_input_id(
+            inputs,
+            radial_rotation_modifier,
+            props.SOCKET_RADIAL_COUNT,
+        )
+        radial_rotation_radius_id = _modifier_input_id(
+            inputs,
+            radial_rotation_modifier,
+            props.SOCKET_RADIAL_RADIUS,
+        )
+        radial_rotation_arc_id = _modifier_input_id(
+            inputs,
+            radial_rotation_modifier,
+            props.SOCKET_RADIAL_ARC,
+        )
+        radial_rotation_align_id = _modifier_input_id(
+            inputs,
+            radial_rotation_modifier,
+            props.SOCKET_RADIAL_ALIGN,
+        )
+        radial_rotation_modifier[radial_rotation_count_id] = 4
+        radial_rotation_modifier[radial_rotation_radius_id] = 2.0
+        radial_rotation_modifier[radial_rotation_arc_id] = 6.283185307179586
+        radial_rotation_modifier[radial_rotation_align_id] = True
+        _set_modifier_mode(
+            radial_rotation_cloner,
+            radial_rotation_modifier,
+            radial_rotation_mode_id,
+            2,
+        )
+        radial_rotation_vertices = _evaluated_vertices(radial_rotation_cloner)
+        assert _has_vertex_near(radial_rotation_vertices, (-0.5, 2.0, 0.0))
+
+        first_mesh = bpy.data.meshes.new("Alternating First Mesh")
+        first_mesh.from_pydata([(0.0, 0.0, 0.0)], [], [])
+        first_mesh.update()
+        first_source = bpy.data.objects.new("Alternating First", first_mesh)
+        bpy.context.collection.objects.link(first_source)
+        bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=first_source.name,
+            count_x=1,
+            count_y=1,
+            count_z=1,
+        )
+        alternating_cloner = bpy.context.object
+        alternating_modifier = alternating_cloner.modifiers["Cloner"]
+        alternating_mode_id = _modifier_input_id(
+            inputs,
+            alternating_modifier,
+            props.SOCKET_DISTRIBUTION_MODE,
+        )
+        alternating_linear_count_id = _modifier_input_id(
+            inputs,
+            alternating_modifier,
+            props.SOCKET_LINEAR_COUNT,
+        )
+        alternating_source_count_id = _modifier_input_id(
+            inputs,
+            alternating_modifier,
+            props.SOCKET_SOURCE_COUNT,
+        )
+        alternating_modifier[alternating_linear_count_id] = 4
+        _set_modifier_mode(
+            alternating_cloner,
+            alternating_modifier,
+            alternating_mode_id,
+            1,
+        )
+        assert alternating_modifier[alternating_source_count_id] == 1
+        assert _evaluated_vertex_count(alternating_cloner) == 4
+
+        second_mesh = bpy.data.meshes.new("Alternating Second Mesh")
+        second_mesh.from_pydata(
+            [(0.0, 0.0, 0.0), (0.25, 0.0, 0.0), (0.0, 0.25, 0.0)],
+            [],
+            [(0, 1, 2)],
+        )
+        second_mesh.update()
+        second_source = bpy.data.objects.new("Alternating Second", second_mesh)
+        bpy.context.collection.objects.link(second_source)
+        second_source.parent = alternating_cloner
+        sources.sync_all_source_visibility()
+        bpy.context.view_layer.update()
+
+        assert alternating_modifier[alternating_source_count_id] == 2
+        assert first_source.hide_get()
+        assert second_source.hide_get()
+        assert _evaluated_vertex_count(alternating_cloner) == 8
+
+        grid_first_mesh = bpy.data.meshes.new("Grid Alternating First Mesh")
+        grid_first_mesh.from_pydata([(0.0, 0.0, 0.0)], [], [])
+        grid_first_mesh.update()
+        grid_first_source = bpy.data.objects.new("Grid Alternating First", grid_first_mesh)
+        bpy.context.collection.objects.link(grid_first_source)
+        bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=grid_first_source.name,
+            count_x=2,
+            count_y=2,
+            count_z=1,
+            spacing_x=2.0,
+            spacing_y=2.0,
+            spacing_z=2.0,
+        )
+        grid_alternating_cloner = bpy.context.object
+        grid_alternating_modifier = grid_alternating_cloner.modifiers["Cloner"]
+
+        grid_second_mesh = bpy.data.meshes.new("Grid Alternating Second Mesh")
+        grid_second_mesh.from_pydata(
+            [(0.0, 0.0, 0.0), (0.25, 0.0, 0.0), (0.0, 0.25, 0.0)],
+            [],
+            [(0, 1, 2)],
+        )
+        grid_second_mesh.update()
+        grid_second_source = bpy.data.objects.new("Grid Alternating Second", grid_second_mesh)
+        bpy.context.collection.objects.link(grid_second_source)
+        grid_second_source.parent = grid_alternating_cloner
+        sources.sync_all_source_visibility()
+        bpy.context.view_layer.update()
+
+        grid_vertices = _evaluated_vertices(grid_alternating_cloner)
+        assert _has_vertex_near(grid_vertices, (-0.75, -1.0, 0.0))
+        assert _has_vertex_near(grid_vertices, (1.25, 1.0, 0.0))
+        source_half = guides.source_bounds_half_extents(grid_alternating_cloner)
+        assert source_half.x >= 0.25
+        assert source_half.y >= 0.25
+        bpy.context.view_layer.objects.active = grid_alternating_cloner
+        gizmos.apply_handle_offset(grid_alternating_cloner, "X", source_half.x + 3.0)
+        assert abs(grid_alternating_cloner.clone_fields_cloner.spacing_x - 6.0) < 0.0001
+        x_direction = gizmos._axis_matrix(grid_alternating_cloner, "X").to_3x3() @ Vector((0.0, 0.0, 1.0))
+        y_direction = gizmos._axis_matrix(grid_alternating_cloner, "Y").to_3x3() @ Vector((0.0, 0.0, 1.0))
+        z_direction = gizmos._axis_matrix(grid_alternating_cloner, "Z").to_3x3() @ Vector((0.0, 0.0, 1.0))
+        assert max(abs(x_direction[i] - Vector((1.0, 0.0, 0.0))[i]) for i in range(3)) < 0.0001
+        assert max(abs(y_direction[i] - Vector((0.0, 1.0, 0.0))[i]) for i in range(3)) < 0.0001
+        assert max(abs(z_direction[i] - Vector((0.0, 0.0, 1.0))[i]) for i in range(3)) < 0.0001
+
+        grid_alternating_cloner.clone_fields_cloner.distribution_mode = "RADIAL"
+        radial_radius_before = grid_alternating_cloner.clone_fields_cloner.radial_radius
+        gizmos.apply_handle_offset(
+            grid_alternating_cloner,
+            "R",
+            guides.source_bounds_half_extents(grid_alternating_cloner).x + 5.0,
+        )
+        assert grid_alternating_cloner.clone_fields_cloner.radial_radius != radial_radius_before
+        assert abs(grid_alternating_cloner.clone_fields_cloner.radial_radius - 5.0) < 0.0001
 
         print("CLONE_FIELDS_SMOKE_OK")
     finally:

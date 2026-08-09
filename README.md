@@ -1,7 +1,9 @@
 # Clone Fields
 
-Clone Fields is a free Blender extension for procedural grid cloning using
-Geometry Nodes.
+Clone Fields is a free Blender extension for procedural cloning using Geometry
+Nodes.
+
+![Clone Fields cloner grid in Blender](docs/ClonerFieldsScreenshot.png)
 
 ## Install
 
@@ -27,6 +29,28 @@ Add > Clone Fields > Cloner
 The created `Cloner` object contains the live Geometry Nodes modifier. The
 source object is parented under the cloner and hidden while the modifier is
 enabled.
+
+The Cloner modifier currently supports:
+
+- Grid distribution
+- Linear distribution
+- Radial distribution
+
+The Modifier tab shows a Clone Fields panel with named mode controls for Grid,
+Linear, and Radial. Only the controls for the selected distribution mode are
+shown.
+
+Grid and Radial distributions are centered on the Cloner origin. Selected
+Cloners draw lightweight viewport guides for grid bounds or radial radius.
+Grid axis handles update spacing, and the Radial handle updates radius.
+
+360-degree arcs use the clone count as the angular step divisor, so a count of
+8 produces 8 evenly spaced clones without an overlapping endpoint. `Align`
+makes the source transform follow the radial step.
+
+To use multiple sources, parent additional source objects directly under the
+Cloner. Clone Fields alternates through the child sources by clone index. Empty
+objects can be used as blank/spacer sources.
 
 ## Build the Zip
 
