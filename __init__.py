@@ -11,7 +11,6 @@ from . import (
     modifier_inputs,
     object_settings,
     operators,
-    panels,
     properties,
     source_management,
 )
@@ -28,7 +27,6 @@ modules = (
     cloner,
     operators,
     menus,
-    panels,
 )
 
 
@@ -38,13 +36,11 @@ def register() -> None:
     object_settings.register()
     operators.register()
     menus.register()
-    panels.register()
     source_management.register()
 
 
 def unregister() -> None:
     source_management.unregister()
-    panels.unregister()
     menus.unregister()
     operators.unregister()
     object_settings.unregister()

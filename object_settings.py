@@ -1,7 +1,7 @@
 """Object-level settings shown in the Clone Fields cloner panel."""
 
 import bpy
-from bpy.props import FloatProperty, IntProperty, PointerProperty
+from bpy.props import BoolProperty, FloatProperty, IntProperty, PointerProperty
 
 from . import modifier_inputs, properties, source_management
 
@@ -49,6 +49,42 @@ def _sync_spacing_y(self, context) -> None:
 
 def _sync_spacing_z(self, context) -> None:
     _sync_modifier_value(self, properties.SOCKET_SPACING_Z, self.spacing_z)
+
+
+def _sync_source_position_x(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_SOURCE_POSITION_X, self.source_position_x)
+
+
+def _sync_source_position_y(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_SOURCE_POSITION_Y, self.source_position_y)
+
+
+def _sync_source_position_z(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_SOURCE_POSITION_Z, self.source_position_z)
+
+
+def _sync_source_rotation_x(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_SOURCE_ROTATION_X, self.source_rotation_x)
+
+
+def _sync_source_rotation_y(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_SOURCE_ROTATION_Y, self.source_rotation_y)
+
+
+def _sync_source_rotation_z(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_SOURCE_ROTATION_Z, self.source_rotation_z)
+
+
+def _sync_source_scale_x(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_SOURCE_SCALE_X, self.source_scale_x)
+
+
+def _sync_source_scale_y(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_SOURCE_SCALE_Y, self.source_scale_y)
+
+
+def _sync_source_scale_z(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_SOURCE_SCALE_Z, self.source_scale_z)
 
 
 def _sync_modifier_value(self, socket_name: str, value) -> None:
@@ -105,6 +141,78 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         subtype="DISTANCE",
         unit="LENGTH",
         update=_sync_spacing_z,
+    )
+    source_position_x: FloatProperty(
+        name=properties.SOCKET_SOURCE_POSITION_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_SOURCE_POSITION_X],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_source_position_x,
+    )
+    source_position_y: FloatProperty(
+        name=properties.SOCKET_SOURCE_POSITION_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_SOURCE_POSITION_Y],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_source_position_y,
+    )
+    source_position_z: FloatProperty(
+        name=properties.SOCKET_SOURCE_POSITION_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_SOURCE_POSITION_Z],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_source_position_z,
+    )
+    source_rotation_x: FloatProperty(
+        name=properties.SOCKET_SOURCE_ROTATION_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_SOURCE_ROTATION_X],
+        subtype="ANGLE",
+        unit="ROTATION",
+        update=_sync_source_rotation_x,
+    )
+    source_rotation_y: FloatProperty(
+        name=properties.SOCKET_SOURCE_ROTATION_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_SOURCE_ROTATION_Y],
+        subtype="ANGLE",
+        unit="ROTATION",
+        update=_sync_source_rotation_y,
+    )
+    source_rotation_z: FloatProperty(
+        name=properties.SOCKET_SOURCE_ROTATION_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_SOURCE_ROTATION_Z],
+        subtype="ANGLE",
+        unit="ROTATION",
+        update=_sync_source_rotation_z,
+    )
+    source_scale_x: FloatProperty(
+        name=properties.SOCKET_SOURCE_SCALE_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_SOURCE_SCALE_X],
+        min=0.0,
+        update=_sync_source_scale_x,
+    )
+    source_scale_y: FloatProperty(
+        name=properties.SOCKET_SOURCE_SCALE_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_SOURCE_SCALE_Y],
+        min=0.0,
+        update=_sync_source_scale_y,
+    )
+    source_scale_z: FloatProperty(
+        name=properties.SOCKET_SOURCE_SCALE_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_SOURCE_SCALE_Z],
+        min=0.0,
+        update=_sync_source_scale_z,
+    )
+    show_source_position: BoolProperty(
+        name="Position",
+        default=False,
+    )
+    show_source_rotation: BoolProperty(
+        name="Rotation",
+        default=True,
+    )
+    show_source_scale: BoolProperty(
+        name="Scale",
+        default=True,
     )
 
 

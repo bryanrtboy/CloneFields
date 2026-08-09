@@ -11,9 +11,6 @@ PROP_CLONER_TYPE = "clone_fields_type"
 PROP_CLONER_MODE = "clone_fields_mode"
 PROP_MANAGED_SOURCE = "clone_fields_managed_source"
 PROP_SOURCE_OWNER = "clone_fields_source_owner"
-PROP_CLONER_COLLECTION = "clone_fields_cloner_collection"
-PROP_OUTPUT_COLLECTION = "clone_fields_output_collection"
-PROP_SOURCE_COLLECTION = "clone_fields_source_collection"
 
 SOCKET_GEOMETRY = "Geometry"
 SOCKET_SOURCE_OBJECT = "Source Object"
@@ -23,6 +20,15 @@ SOCKET_COUNT_Z = "Count Z"
 SOCKET_SPACING_X = "Spacing X"
 SOCKET_SPACING_Y = "Spacing Y"
 SOCKET_SPACING_Z = "Spacing Z"
+SOCKET_SOURCE_POSITION_X = "Source Position X"
+SOCKET_SOURCE_POSITION_Y = "Source Position Y"
+SOCKET_SOURCE_POSITION_Z = "Source Position Z"
+SOCKET_SOURCE_ROTATION_X = "Source Rotation X"
+SOCKET_SOURCE_ROTATION_Y = "Source Rotation Y"
+SOCKET_SOURCE_ROTATION_Z = "Source Rotation Z"
+SOCKET_SOURCE_SCALE_X = "Source Scale X"
+SOCKET_SOURCE_SCALE_Y = "Source Scale Y"
+SOCKET_SOURCE_SCALE_Z = "Source Scale Z"
 
 GRID_INPUT_DEFAULTS = {
     SOCKET_COUNT_X: 3,
@@ -31,4 +37,13 @@ GRID_INPUT_DEFAULTS = {
     SOCKET_SPACING_X: 2.0,
     SOCKET_SPACING_Y: 2.0,
     SOCKET_SPACING_Z: 2.0,
+    SOCKET_SOURCE_POSITION_X: 0.0,
+    SOCKET_SOURCE_POSITION_Y: 0.0,
+    SOCKET_SOURCE_POSITION_Z: 0.0,
+    SOCKET_SOURCE_ROTATION_X: 0.0,
+    SOCKET_SOURCE_ROTATION_Y: 0.0,
+    SOCKET_SOURCE_ROTATION_Z: 0.0,
+    SOCKET_SOURCE_SCALE_X: 1.0,
+    SOCKET_SOURCE_SCALE_Y: 1.0,
+    SOCKET_SOURCE_SCALE_Z: 1.0,
 }

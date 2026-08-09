@@ -15,6 +15,15 @@ GRID_SOCKET_NAMES = (
     properties.SOCKET_SPACING_X,
     properties.SOCKET_SPACING_Y,
     properties.SOCKET_SPACING_Z,
+    properties.SOCKET_SOURCE_POSITION_X,
+    properties.SOCKET_SOURCE_POSITION_Y,
+    properties.SOCKET_SOURCE_POSITION_Z,
+    properties.SOCKET_SOURCE_ROTATION_X,
+    properties.SOCKET_SOURCE_ROTATION_Y,
+    properties.SOCKET_SOURCE_ROTATION_Z,
+    properties.SOCKET_SOURCE_SCALE_X,
+    properties.SOCKET_SOURCE_SCALE_Y,
+    properties.SOCKET_SOURCE_SCALE_Z,
 )
 
 

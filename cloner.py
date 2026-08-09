@@ -26,7 +26,7 @@ def create_grid_cloner(
     mesh = bpy.data.meshes.new(properties.CLONER_MESH_NAME)
     cloner = bpy.data.objects.new(properties.CLONER_OBJECT_NAME, mesh)
 
-    source_management.setup_cloner_collections(context, cloner)
+    context.collection.objects.link(cloner)
     cloner.location = context.scene.cursor.location
     cloner.show_name = True
 
@@ -42,6 +42,7 @@ def create_grid_cloner(
     modifier_inputs.set_modifier_input(modifier, properties.SOCKET_SPACING_X, spacing_x)
     modifier_inputs.set_modifier_input(modifier, properties.SOCKET_SPACING_Y, spacing_y)
     modifier_inputs.set_modifier_input(modifier, properties.SOCKET_SPACING_Z, spacing_z)
+    _set_default_source_transform(modifier)
 
     cloner[properties.PROP_CLONER_TYPE] = "CLONER"
     cloner[properties.PROP_CLONER_MODE] = "GRID"
@@ -86,3 +87,49 @@ def _set_object_settings(
     settings.spacing_x = spacing_x
     settings.spacing_y = spacing_y
     settings.spacing_z = spacing_z
+    settings.source_position_x = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_SOURCE_POSITION_X
+    ]
+    settings.source_position_y = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_SOURCE_POSITION_Y
+    ]
+    settings.source_position_z = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_SOURCE_POSITION_Z
+    ]
+    settings.source_rotation_x = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_SOURCE_ROTATION_X
+    ]
+    settings.source_rotation_y = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_SOURCE_ROTATION_Y
+    ]
+    settings.source_rotation_z = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_SOURCE_ROTATION_Z
+    ]
+    settings.source_scale_x = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_SOURCE_SCALE_X
+    ]
+    settings.source_scale_y = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_SOURCE_SCALE_Y
+    ]
+    settings.source_scale_z = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_SOURCE_SCALE_Z
+    ]
+
+
+def _set_default_source_transform(modifier: bpy.types.NodesModifier) -> None:
+    for socket_name in (
+        properties.SOCKET_SOURCE_POSITION_X,
+        properties.SOCKET_SOURCE_POSITION_Y,
+        properties.SOCKET_SOURCE_POSITION_Z,
+        properties.SOCKET_SOURCE_ROTATION_X,
+        properties.SOCKET_SOURCE_ROTATION_Y,
+        properties.SOCKET_SOURCE_ROTATION_Z,
+        properties.SOCKET_SOURCE_SCALE_X,
+        properties.SOCKET_SOURCE_SCALE_Y,
+        properties.SOCKET_SOURCE_SCALE_Z,
+    ):
+        modifier_inputs.set_modifier_input(
+            modifier,
+            socket_name,
+            properties.GRID_INPUT_DEFAULTS[socket_name],
+        )

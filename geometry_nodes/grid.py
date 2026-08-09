@@ -31,6 +31,26 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     _new_socket(interface, properties.SOCKET_GEOMETRY, "INPUT", "NodeSocketGeometry")
     _new_socket(interface, properties.SOCKET_GEOMETRY, "OUTPUT", "NodeSocketGeometry")
 
+    count_panel = _new_panel(interface, "Count")
+    spacing_panel = _new_panel(interface, "Spacing")
+    source_transform_panel = _new_panel(interface, "Source Transform")
+    position_panel = _new_panel(
+        interface,
+        "Position",
+        parent=source_transform_panel,
+        default_closed=True,
+    )
+    rotation_panel = _new_panel(
+        interface,
+        "Rotation",
+        parent=source_transform_panel,
+    )
+    scale_panel = _new_panel(
+        interface,
+        "Scale",
+        parent=source_transform_panel,
+    )
+
     _new_socket(
         interface,
         properties.SOCKET_SOURCE_OBJECT,
@@ -43,7 +63,13 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         properties.SOCKET_COUNT_Y,
         properties.SOCKET_COUNT_Z,
     ):
-        socket = _new_socket(interface, name, "INPUT", "NodeSocketInt")
+        socket = _new_socket(
+            interface,
+            name,
+            "INPUT",
+            "NodeSocketInt",
+            parent=count_panel,
+        )
         socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
         socket.min_value = 1
 
@@ -52,10 +78,61 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         properties.SOCKET_SPACING_Y,
         properties.SOCKET_SPACING_Z,
     ):
-        socket = _new_socket(interface, name, "INPUT", "NodeSocketFloat")
+        socket = _new_socket(
+            interface,
+            name,
+            "INPUT",
+            "NodeSocketFloat",
+            parent=spacing_panel,
+        )
         socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
         socket.min_value = 0.0
         socket.subtype = "DISTANCE"
+
+    for name in (
+        properties.SOCKET_SOURCE_POSITION_X,
+        properties.SOCKET_SOURCE_POSITION_Y,
+        properties.SOCKET_SOURCE_POSITION_Z,
+    ):
+        socket = _new_socket(
+            interface,
+            name,
+            "INPUT",
+            "NodeSocketFloat",
+            parent=position_panel,
+        )
+        socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
+        socket.subtype = "DISTANCE"
+
+    for name in (
+        properties.SOCKET_SOURCE_ROTATION_X,
+        properties.SOCKET_SOURCE_ROTATION_Y,
+        properties.SOCKET_SOURCE_ROTATION_Z,
+    ):
+        socket = _new_socket(
+            interface,
+            name,
+            "INPUT",
+            "NodeSocketFloat",
+            parent=rotation_panel,
+        )
+        socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
+        socket.subtype = "ANGLE"
+
+    for name in (
+        properties.SOCKET_SOURCE_SCALE_X,
+        properties.SOCKET_SOURCE_SCALE_Y,
+        properties.SOCKET_SOURCE_SCALE_Z,
+    ):
+        socket = _new_socket(
+            interface,
+            name,
+            "INPUT",
+            "NodeSocketFloat",
+            parent=scale_panel,
+        )
+        socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
+        socket.min_value = 0.0
 
 
 def _create_nodes(
@@ -73,8 +150,14 @@ def _create_nodes(
 
     if nested_grid is None:
         _link(links, group_input, properties.SOCKET_SOURCE_OBJECT, object_info, "Object")
-        source_node = object_info
-        source_socket = "Geometry"
+        source_node, source_socket = _build_source_transform(
+            nodes,
+            links,
+            group_input,
+            object_info,
+            "Geometry",
+            (-420, -180),
+        )
         x_offset = -680
     else:
         object_info.inputs["Object"].default_value = nested_grid["source_object"]
@@ -179,8 +262,72 @@ def _build_grid_distribution(
     return instance_z, "Instances"
 
 
-def _new_socket(interface, name: str, in_out: str, socket_type: str):
-    return interface.new_socket(name=name, in_out=in_out, socket_type=socket_type)
+def _build_source_transform(
+    nodes,
+    links,
+    group_input,
+    source_node,
+    source_socket: str,
+    origin: tuple[int, int],
+) -> tuple:
+    x, y = origin
+    position = _new_combine_xyz_node(nodes, (x, y + 200))
+    rotation_x = _new_combine_xyz_node(nodes, (x, y + 40))
+    rotation_y = _new_combine_xyz_node(nodes, (x, y - 80))
+    rotation_z = _new_combine_xyz_node(nodes, (x, y - 200))
+    scale = _new_combine_xyz_node(nodes, (x, y - 320))
+    negative_location = _new_vector_math_node(nodes, (x + 260, y + 160), "SCALE")
+    restore_location = _new_vector_math_node(nodes, (x + 1040, y + 160), "ADD")
+    to_origin = _new_node(nodes, "GeometryNodeTransform", (x + 260, y - 120))
+    scale_transform = _new_node(nodes, "GeometryNodeTransform", (x + 520, y - 120))
+    rotate_z_transform = _new_node(nodes, "GeometryNodeTransform", (x + 780, y - 120))
+    rotate_y_transform = _new_node(nodes, "GeometryNodeTransform", (x + 1040, y - 120))
+    rotate_x_transform = _new_node(nodes, "GeometryNodeTransform", (x + 1300, y - 120))
+    from_origin = _new_node(nodes, "GeometryNodeTransform", (x + 1560, y - 120))
+
+    negative_location.inputs["Scale"].default_value = -1.0
+    _link(links, source_node, source_socket, to_origin, "Geometry")
+    _link(links, source_node, "Location", negative_location, "Vector")
+    _link(links, negative_location, "Vector", to_origin, "Translation")
+    _link(links, group_input, properties.SOCKET_SOURCE_POSITION_X, position, "X")
+    _link(links, group_input, properties.SOCKET_SOURCE_POSITION_Y, position, "Y")
+    _link(links, group_input, properties.SOCKET_SOURCE_POSITION_Z, position, "Z")
+    _link(links, group_input, properties.SOCKET_SOURCE_ROTATION_X, rotation_x, "X")
+    _link(links, group_input, properties.SOCKET_SOURCE_ROTATION_Y, rotation_y, "Y")
+    _link(links, group_input, properties.SOCKET_SOURCE_ROTATION_Z, rotation_z, "Z")
+    _link(links, group_input, properties.SOCKET_SOURCE_SCALE_X, scale, "X")
+    _link(links, group_input, properties.SOCKET_SOURCE_SCALE_Y, scale, "Y")
+    _link(links, group_input, properties.SOCKET_SOURCE_SCALE_Z, scale, "Z")
+    _link(links, to_origin, "Geometry", scale_transform, "Geometry")
+    _link(links, scale, "Vector", scale_transform, "Scale")
+    _link(links, scale_transform, "Geometry", rotate_z_transform, "Geometry")
+    _link(links, rotation_z, "Vector", rotate_z_transform, "Rotation")
+    _link(links, rotate_z_transform, "Geometry", rotate_y_transform, "Geometry")
+    _link(links, rotation_y, "Vector", rotate_y_transform, "Rotation")
+    _link(links, rotate_y_transform, "Geometry", rotate_x_transform, "Geometry")
+    _link(links, rotation_x, "Vector", rotate_x_transform, "Rotation")
+    _link(links, rotate_x_transform, "Geometry", from_origin, "Geometry")
+    _link(links, source_node, "Location", restore_location, "Vector")
+    links.new(position.outputs["Vector"], restore_location.inputs[1])
+    _link(links, restore_location, "Vector", from_origin, "Translation")
+
+    return from_origin, "Geometry"
+
+
+def _new_panel(interface, name: str, parent=None, default_closed: bool = False):
+    panel = interface.new_panel(name=name, default_closed=default_closed)
+    if parent is not None:
+        interface.move_to_parent(panel, parent, len(parent.interface_items))
+    return panel
+
+
+def _new_socket(interface, name: str, in_out: str, socket_type: str, parent=None):
+    return interface.new_socket(
+        name=name,
+        in_out=in_out,
+        socket_type=socket_type,
+        parent=parent,
+    )
 
 
 def _new_node(nodes, bl_idname: str, location: tuple[int, int]):
@@ -191,6 +338,12 @@ def _new_node(nodes, bl_idname: str, location: tuple[int, int]):
 
 def _new_combine_xyz_node(nodes, location: tuple[int, int]):
     return _new_node(nodes, "ShaderNodeCombineXYZ", location)
+
+
+def _new_vector_math_node(nodes, location: tuple[int, int], operation: str):
+    node = _new_node(nodes, "ShaderNodeVectorMath", location)
+    node.operation = operation
+    return node
 
 
 def _new_mesh_line_node(nodes, location: tuple[int, int]):
