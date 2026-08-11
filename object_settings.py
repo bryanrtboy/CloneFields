@@ -62,12 +62,9 @@ def _sync_effector_object(self, context) -> None:
     _sync_modifier_value(self, properties.SOCKET_EFFECTOR_OBJECT, self.effector_object)
     self.effector_enabled = self.effector_object is not None
     if self.effector_object is not None:
-        effectors.configure_effector_object(
-            self.effector_object,
-            self.effector_shape,
-            self.effector_radius,
-        )
-        effectors.rename_effector_object(self.effector_object, self.effector_shape)
+        modifier = modifier_inputs.get_cloner_modifier(self.id_data)
+        if modifier is not None:
+            effectors.sync_effector_slot(self, modifier, 0)
 
 
 def _sync_effector_shape(self, context) -> None:
@@ -100,7 +97,7 @@ def _sync_effector_strength(self, context) -> None:
     _sync_modifier_value(
         self,
         properties.SOCKET_EFFECTOR_STRENGTH,
-        self.effector_strength / 100.0,
+        _combined_effector_strength(self, 0, self.effector_strength),
     )
 
 
@@ -181,7 +178,11 @@ def _sync_effector_slot_value(
     property_name: str,
 ) -> None:
     value = getattr(self, property_name)
-    modifier_value = value / 100.0 if socket_key == "strength" else value
+    modifier_value = (
+        _combined_effector_strength(self, slot_index, value)
+        if socket_key == "strength"
+        else value
+    )
     object_property = _effector_slot_property_name(slot_index, "object")
     shape_property = _effector_slot_property_name(slot_index, "shape")
     radius_property = _effector_slot_property_name(slot_index, "radius")
@@ -205,13 +206,9 @@ def _sync_effector_slot_value(
     if socket_key == "object":
         enabled_property = _effector_slot_property_name(slot_index, "enabled")
         setattr(self, enabled_property, value is not None)
-        if value is not None:
-            effectors.configure_effector_object(
-                value,
-                getattr(self, shape_property),
-                getattr(self, radius_property),
-            )
-            effectors.rename_effector_object(value, getattr(self, shape_property))
+        modifier = modifier_inputs.get_cloner_modifier(self.id_data)
+        if value is not None and modifier is not None:
+            effectors.sync_effector_slot(self, modifier, slot_index)
     if socket_key == "radius":
         effector = getattr(self, object_property)
         if effector is not None:
@@ -403,8 +400,142 @@ def _sync_modifier_value(self, socket_name: str, value) -> None:
         modifier_inputs.set_modifier_input(modifier, socket_name, value)
 
 
+def _combined_effector_strength(self, slot_index: int, cloner_strength: int) -> float:
+    effector = getattr(self, _effector_slot_property_name(slot_index, "object"))
+    global_strength = properties.EFFECTOR_STRENGTH_PERCENT_DEFAULT
+    if (
+        effectors.is_effector_object(effector)
+        and hasattr(effector, "clone_fields_effector")
+    ):
+        global_strength = effector.clone_fields_effector.strength
+    return global_strength * cloner_strength / 10000.0
+
+
+def _sync_effector_settings(self, context) -> None:
+    obj = self.id_data
+    effectors.configure_effector_object(obj, self.shape, self.radius)
+    effectors.rename_effector_object(obj, self.shape)
+    effectors.sync_effector_to_referencing_cloners(obj)
+
+
+def _sync_effector_radius_setting(self, context) -> None:
+    obj = self.id_data
+    effectors.configure_effector_object(obj, self.shape, self.radius)
+    effectors.sync_effector_to_referencing_cloners(obj)
+
+
 def _effector_slot_property_name(slot_index: int, key: str) -> str:
     return effectors.EFFECTOR_SLOT_PROPERTIES[slot_index][key]
+
+
+class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
+    shape: EnumProperty(
+        name="Field",
+        items=effectors.FIELD_SHAPE_ITEMS,
+        default=effectors.FIELD_SHAPE_SPHERE,
+        update=_sync_effector_settings,
+    )
+    invert: BoolProperty(
+        name="Inverse",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_INVERT],
+        update=_sync_effector_settings,
+    )
+    strength: IntProperty(
+        name="Global Strength",
+        default=properties.EFFECTOR_STRENGTH_PERCENT_DEFAULT,
+        min=0,
+        max=100,
+        subtype="PERCENTAGE",
+        update=_sync_effector_settings,
+    )
+    radius: FloatProperty(
+        name="Radius",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_RADIUS],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_effector_radius_setting,
+    )
+    falloff: IntProperty(
+        name="Falloff",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_FALLOFF],
+        min=0,
+        max=100,
+        subtype="PERCENTAGE",
+        update=_sync_effector_settings,
+    )
+    use_position: BoolProperty(
+        name="Position",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_USE_POSITION],
+        update=_sync_effector_settings,
+    )
+    position_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_POSITION_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_POSITION_X],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_effector_settings,
+    )
+    position_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_POSITION_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_POSITION_Y],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_effector_settings,
+    )
+    position_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_POSITION_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_POSITION_Z],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_effector_settings,
+    )
+    use_rotation: BoolProperty(
+        name="Rotation",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_USE_ROTATION],
+        update=_sync_effector_settings,
+    )
+    rotation_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_ROTATION_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_ROTATION_X],
+        subtype="ANGLE",
+        update=_sync_effector_settings,
+    )
+    rotation_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_ROTATION_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_ROTATION_Y],
+        subtype="ANGLE",
+        update=_sync_effector_settings,
+    )
+    rotation_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_ROTATION_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_ROTATION_Z],
+        subtype="ANGLE",
+        update=_sync_effector_settings,
+    )
+    use_scale: BoolProperty(
+        name="Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_USE_SCALE],
+        update=_sync_effector_settings,
+    )
+    scale_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_SCALE_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_X],
+        min=0.0,
+        update=_sync_effector_settings,
+    )
+    scale_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_SCALE_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_Y],
+        min=0.0,
+        update=_sync_effector_settings,
+    )
+    scale_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_SCALE_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_Z],
+        min=0.0,
+        update=_sync_effector_settings,
+    )
 
 
 class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
@@ -979,16 +1110,18 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
     )
 
 
-classes = (CloneFieldsClonerSettings,)
+classes = (CloneFieldsEffectorSettings, CloneFieldsClonerSettings)
 
 
 def register() -> None:
     for cls in classes:
         bpy.utils.register_class(cls)
+    bpy.types.Object.clone_fields_effector = PointerProperty(type=CloneFieldsEffectorSettings)
     bpy.types.Object.clone_fields_cloner = PointerProperty(type=CloneFieldsClonerSettings)
 
 
 def unregister() -> None:
     del bpy.types.Object.clone_fields_cloner
+    del bpy.types.Object.clone_fields_effector
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)

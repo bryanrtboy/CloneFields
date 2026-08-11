@@ -461,12 +461,14 @@ def main() -> None:
         assert not plain_effector.select_get()
         assert effector_cloner.clone_fields_cloner.effector_object == plain_effector
         assert effector_cloner.clone_fields_cloner.effector_enabled
-        assert effector_cloner.clone_fields_cloner.effector_falloff == 50
+        plain_effector_settings = plain_effector.clone_fields_effector
+        assert plain_effector_settings.falloff == 50
+        assert plain_effector_settings.strength == 100
+        assert plain_effector_settings.use_position
+        assert not plain_effector_settings.use_rotation
+        assert not plain_effector_settings.use_scale
+        assert abs(plain_effector_settings.position_z - 1.0) < 0.0001
         assert effector_cloner.clone_fields_cloner.effector_strength == 100
-        assert effector_cloner.clone_fields_cloner.effector_use_position
-        assert not effector_cloner.clone_fields_cloner.effector_use_rotation
-        assert not effector_cloner.clone_fields_cloner.effector_use_scale
-        assert abs(effector_cloner.clone_fields_cloner.effector_position_z - 1.0) < 0.0001
         positioned_effector_center = _evaluated_bounds_center(effector_cloner)
         assert positioned_effector_center[2] > base_effector_center[2]
         effector_modifier = effector_cloner.modifiers["Cloner"]
@@ -474,6 +476,11 @@ def main() -> None:
             inputs,
             effector_modifier,
             props.SOCKET_EFFECTOR_OBJECT,
+        )
+        effector_radius_id = _modifier_input_id(
+            inputs,
+            effector_modifier,
+            props.SOCKET_EFFECTOR_RADIUS,
         )
         effector_strength_id = _modifier_input_id(
             inputs,
@@ -484,7 +491,11 @@ def main() -> None:
         assert abs(effector_modifier[effector_strength_id] - 1.0) < 0.0001
         effector_cloner.clone_fields_cloner.effector_strength = 50
         assert abs(effector_modifier[effector_strength_id] - 0.5) < 0.0001
+        plain_effector_settings.strength = 50
+        assert abs(effector_modifier[effector_strength_id] - 0.25) < 0.0001
+        plain_effector_settings.strength = 100
         effector_cloner.clone_fields_cloner.effector_strength = 100
+        assert abs(effector_modifier[effector_strength_id] - 1.0) < 0.0001
 
         bpy.ops.mesh.primitive_cube_add(location=(14.0, 0.0, 0.0))
         shared_source = bpy.context.object
@@ -504,6 +515,15 @@ def main() -> None:
         )
         assert link_result == {"FINISHED"}, link_result
         assert shared_cloner.clone_fields_cloner.effector_object == plain_effector
+        shared_modifier = shared_cloner.modifiers["Cloner"]
+        shared_effector_radius_id = _modifier_input_id(
+            inputs,
+            shared_modifier,
+            props.SOCKET_EFFECTOR_RADIUS,
+        )
+        plain_effector_settings.radius = 2.25
+        assert abs(effector_modifier[effector_radius_id] - 2.25) < 0.0001
+        assert abs(shared_modifier[shared_effector_radius_id] - 2.25) < 0.0001
         unlink_shared_result = bpy.ops.clone_fields.delete_effector("EXEC_DEFAULT", slot_index=0)
         assert unlink_shared_result == {"FINISHED"}, unlink_shared_result
         assert plain_effector.name in bpy.data.objects
@@ -512,10 +532,10 @@ def main() -> None:
         effector_cloner.select_set(True)
         bpy.context.view_layer.objects.active = effector_cloner
 
-        effector_cloner.clone_fields_cloner.effector_radius = 1.0
-        effector_cloner.clone_fields_cloner.effector_use_position = False
-        effector_cloner.clone_fields_cloner.effector_use_scale = True
-        effector_cloner.clone_fields_cloner.effector_scale_y = 2.0
+        plain_effector_settings.radius = 1.0
+        plain_effector_settings.use_position = False
+        plain_effector_settings.use_scale = True
+        plain_effector_settings.scale_y = 2.0
         effector_cloner.update_tag()
         effector_modifier.node_group.update_tag()
         bpy.context.view_layer.update()
@@ -534,7 +554,7 @@ def main() -> None:
         )
         assert center_y > outside_y
 
-        effector_cloner.clone_fields_cloner.effector_invert = True
+        plain_effector_settings.invert = True
         effector_cloner.update_tag()
         effector_modifier.node_group.update_tag()
         bpy.context.view_layer.update()
@@ -631,11 +651,14 @@ def main() -> None:
         bpy.ops.clone_fields.add_plain_effector("EXEC_DEFAULT")
         rotation_stack_settings = rotation_stack_cloner.clone_fields_cloner
         rotation_stack_settings.effector_enabled = False
-        rotation_stack_settings.effector2_use_position = False
-        rotation_stack_settings.effector2_use_rotation = True
-        rotation_stack_settings.effector2_rotation_z = 1.5707963267948966
-        rotation_stack_settings.effector2_radius = 10.0
-        rotation_stack_settings.effector2_falloff = 100
+        rotation_stack_effector_settings = (
+            rotation_stack_settings.effector2_object.clone_fields_effector
+        )
+        rotation_stack_effector_settings.use_position = False
+        rotation_stack_effector_settings.use_rotation = True
+        rotation_stack_effector_settings.rotation_z = 1.5707963267948966
+        rotation_stack_effector_settings.radius = 10.0
+        rotation_stack_effector_settings.falloff = 100
         rotation_stack_modifier = rotation_stack_cloner.modifiers["Cloner"]
         rotation_stack_cloner.update_tag()
         rotation_stack_modifier.node_group.update_tag()
@@ -858,11 +881,14 @@ def main() -> None:
         )
         bpy.ops.clone_fields.add_plain_effector("EXEC_DEFAULT")
         radial_effector_settings = radial_effector_cloner.clone_fields_cloner
-        radial_effector_settings.effector_use_position = False
-        radial_effector_settings.effector_use_rotation = True
-        radial_effector_settings.effector_rotation_z = 1.5707963267948966
-        radial_effector_settings.effector_radius = 10.0
-        radial_effector_settings.effector_falloff = 100
+        radial_basic_effector_settings = (
+            radial_effector_settings.effector_object.clone_fields_effector
+        )
+        radial_basic_effector_settings.use_position = False
+        radial_basic_effector_settings.use_rotation = True
+        radial_basic_effector_settings.rotation_z = 1.5707963267948966
+        radial_basic_effector_settings.radius = 10.0
+        radial_basic_effector_settings.falloff = 100
         radial_effector_cloner.update_tag()
         radial_effector_modifier.node_group.update_tag()
         bpy.context.view_layer.update()

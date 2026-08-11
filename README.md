@@ -62,12 +62,16 @@ objects in the scene named like `Basic Effector [Spherical]`. Move or keyframe
 the controller objects directly, or use the Effector stack's scene-select icon
 to make one active for movement. The stack also lets you select an effector for
 editing, enable it, reorder it, or remove it. Use `Link Existing` to share one
-Effector object across multiple Cloners. Effector size is controlled by
-Radius/Falloff, so object scale is locked to keep the field predictable. Only the
-selected effector's settings are shown. Strength and Falloff are 0-100% sliders.
-Strength controls the amount of the effector transform, and Falloff is 100% for
-a hard field edge or 0% to blend across the full field radius. The Cloner's
-source Offset controls are hidden until enabled.
+Effector object across multiple Cloners. Effector settings are stored on the
+Effector object, so editing Radius, Falloff, Strength, Field, or transform
+amounts from any linked Cloner updates that shared Effector everywhere. Each
+Cloner stack entry keeps its own `Cloner Influence` value for reducing that
+Effector's local impact. Effector size is controlled by Radius/Falloff, so object
+scale is locked to keep the field predictable. Only the selected effector's
+settings are shown. Global Strength, Cloner Influence, and Falloff are 0-100%
+sliders. Global Strength controls the amount of the effector transform, and
+Falloff is 100% for a hard field edge or 0% to blend across the full field
+radius. The Cloner's source Offset controls are hidden until enabled.
 
 ## Build the Zip
 

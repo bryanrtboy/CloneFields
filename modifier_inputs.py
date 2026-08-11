@@ -89,6 +89,18 @@ def set_modifier_input(
     identifier = get_modifier_input_identifier(modifier, socket_name)
     if identifier is not None:
         modifier[identifier] = value
+        tag_modifier_owner(modifier)
+
+
+def tag_modifier_owner(modifier: bpy.types.NodesModifier) -> None:
+    owner = getattr(modifier, "id_data", None)
+    if owner is not None:
+        owner.update_tag()
+        data = getattr(owner, "data", None)
+        if data is not None:
+            data.update_tag()
+    if modifier.node_group is not None:
+        modifier.node_group.update_tag()
 
 
 def get_modifier_input(

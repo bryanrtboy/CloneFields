@@ -184,8 +184,17 @@ def _draw_effector_guides(batch_for_shader, shader, settings, slot, *, selected:
     if effector is None:
         return
 
-    outer_radius = max(0.0, getattr(settings, slot["radius"]))
-    inner_radius = outer_radius * min(1.0, max(0.0, getattr(settings, slot["falloff"]) / 100.0))
+    effector_settings = getattr(effector, "clone_fields_effector", None)
+    outer_radius = max(
+        0.0,
+        effector_settings.radius if effector_settings is not None else getattr(settings, slot["radius"]),
+    )
+    falloff = (
+        effector_settings.falloff
+        if effector_settings is not None
+        else getattr(settings, slot["falloff"])
+    )
+    inner_radius = outer_radius * min(1.0, max(0.0, falloff / 100.0))
     outer = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), outer_radius)
     inner = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), inner_radius)
     outer_color = (0.35, 0.75, 1.0, 0.95) if selected else (0.35, 0.75, 1.0, 0.35)

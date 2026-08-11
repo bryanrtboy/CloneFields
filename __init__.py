@@ -42,6 +42,7 @@ def register() -> None:
     for module in modules:
         importlib.reload(module)
     object_settings.register()
+    effectors.register()
     operators.register()
     panels.register()
     menus.register()
@@ -57,4 +58,5 @@ def unregister() -> None:
     menus.unregister()
     panels.unregister()
     operators.unregister()
+    effectors.unregister()
     object_settings.unregister()

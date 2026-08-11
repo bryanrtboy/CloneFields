@@ -144,25 +144,34 @@ def _draw_source_transform(layout, settings) -> None:
 def _draw_effector_slot(layout, settings, slot: dict) -> None:
     box = layout.box()
     effector = getattr(settings, slot["object"])
-    if effector is not None:
-        box.label(text=effector.name)
-    box.prop(settings, slot["shape"], text="Field")
-    box.prop(settings, slot["invert"])
-    box.prop(settings, slot["strength"])
-    box.prop(settings, slot["radius"])
-    box.prop(settings, slot["falloff"])
+    if effector is None:
+        return
 
-    box.prop(settings, slot["use_position"])
-    if getattr(settings, slot["use_position"]):
-        _draw_xyz_row(box, settings, "", slot["position_x"], slot["position_y"], slot["position_z"])
+    box.label(text=effector.name)
+    effector_settings = getattr(effector, "clone_fields_effector", None)
+    if effector_settings is None:
+        return
 
-    box.prop(settings, slot["use_rotation"])
-    if getattr(settings, slot["use_rotation"]):
-        _draw_xyz_row(box, settings, "", slot["rotation_x"], slot["rotation_y"], slot["rotation_z"])
+    box.prop(effector_settings, "shape", text="Field")
+    box.prop(effector_settings, "invert")
+    box.prop(effector_settings, "strength")
+    box.prop(effector_settings, "radius")
+    box.prop(effector_settings, "falloff")
 
-    box.prop(settings, slot["use_scale"])
-    if getattr(settings, slot["use_scale"]):
-        _draw_xyz_row(box, settings, "", slot["scale_x"], slot["scale_y"], slot["scale_z"])
+    box.prop(effector_settings, "use_position")
+    if effector_settings.use_position:
+        _draw_xyz_row(box, effector_settings, "", "position_x", "position_y", "position_z")
+
+    box.prop(effector_settings, "use_rotation")
+    if effector_settings.use_rotation:
+        _draw_xyz_row(box, effector_settings, "", "rotation_x", "rotation_y", "rotation_z")
+
+    box.prop(effector_settings, "use_scale")
+    if effector_settings.use_scale:
+        _draw_xyz_row(box, effector_settings, "", "scale_x", "scale_y", "scale_z")
+
+    box.separator()
+    box.prop(settings, slot["strength"], text="Cloner Influence")
 
 
 def _selected_effector_slot(settings):

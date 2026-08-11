@@ -123,6 +123,9 @@ class CLONE_FIELDS_OT_add_plain_effector(bpy.types.Operator):
         ]
         effectors.configure_effector_object(effector, shape, radius)
         context.collection.objects.link(effector)
+        if hasattr(effector, "clone_fields_effector"):
+            effector.clone_fields_effector.shape = shape
+            effector.clone_fields_effector.radius = radius
         effector.location = cloner_object.location
 
         _assign_effector_to_slot(settings, modifier, slot_index, effector, shape)
@@ -176,7 +179,10 @@ class CLONE_FIELDS_OT_link_existing_effector(bpy.types.Operator):
             self.report({"ERROR"}, "This milestone supports up to three Effectors")
             return {"CANCELLED"}
 
-        shape = effector.get(properties.PROP_EFFECTOR_SHAPE, effectors.FIELD_SHAPE_SPHERE)
+        if hasattr(effector, "clone_fields_effector"):
+            shape = effector.clone_fields_effector.shape
+        else:
+            shape = effector.get(properties.PROP_EFFECTOR_SHAPE, effectors.FIELD_SHAPE_SPHERE)
         _assign_effector_to_slot(settings, modifier, slot_index, effector, shape)
 
         bpy.ops.object.select_all(action="DESELECT")
@@ -207,6 +213,7 @@ class CLONE_FIELDS_OT_move_plain_effector(bpy.types.Operator):
         settings = cloner_object.clone_fields_cloner
         _swap_effector_slots(settings, self.slot_index, target_index)
         settings.selected_effector_slot = target_index
+        _sync_all_effector_slots(settings, cloner_object.modifiers["Cloner"])
         return {"FINISHED"}
 
 
@@ -277,6 +284,7 @@ class CLONE_FIELDS_OT_delete_effector(bpy.types.Operator):
         for index in range(self.slot_index, len(EFFECTOR_SLOT_PROPERTIES) - 1):
             _copy_effector_slot(settings, index + 1, index)
         _clear_effector_slot(settings, len(EFFECTOR_SLOT_PROPERTIES) - 1)
+        _sync_all_effector_slots(settings, cloner_object.modifiers["Cloner"])
 
         if not _is_effector_referenced(effector) and effector.name in bpy.data.objects:
             bpy.data.objects.remove(effector, do_unlink=True)
@@ -322,11 +330,7 @@ def _assign_effector_to_slot(
     setattr(settings, slot_properties["object"], effector)
     setattr(settings, slot_properties["enabled"], True)
     settings.selected_effector_slot = slot_index
-    modifier_inputs.set_modifier_input(
-        modifier,
-        properties.EFFECTOR_SOCKET_SETS[slot_index]["object"],
-        effector,
-    )
+    effectors.sync_effector_slot(settings, modifier, slot_index)
 
 
 def _effector_already_linked(settings, effector: bpy.types.Object) -> bool:
@@ -395,6 +399,13 @@ def _swap_effector_slots(settings, first_index: int, second_index: int) -> None:
         setattr(settings, first[key], getattr(settings, second[key]))
     for key, value in values.items():
         setattr(settings, second[key], value)
+
+
+def _sync_all_effector_slots(settings, modifier) -> None:
+    for index, slot in enumerate(EFFECTOR_SLOT_PROPERTIES):
+        if getattr(settings, slot["object"]) is None:
+            continue
+        effectors.sync_effector_slot(settings, modifier, index)
 
 
 def register() -> None:

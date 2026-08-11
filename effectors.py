@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import bpy
+from bpy.app.handlers import persistent
 
 from . import properties
 
@@ -85,6 +86,25 @@ EFFECTOR_SLOT_PROPERTIES = (
     },
 )
 
+EFFECTOR_GLOBAL_KEYS = (
+    "shape",
+    "invert",
+    "radius",
+    "falloff",
+    "use_position",
+    "position_x",
+    "position_y",
+    "position_z",
+    "use_rotation",
+    "rotation_x",
+    "rotation_y",
+    "rotation_z",
+    "use_scale",
+    "scale_x",
+    "scale_y",
+    "scale_z",
+)
+
 
 def field_shape_label(shape: str) -> str:
     return FIELD_SHAPE_LABELS.get(shape, "Spherical")
@@ -119,3 +139,87 @@ def rename_effector_object(obj: bpy.types.Object | None, shape: str) -> None:
         return
     obj.name = basic_effector_name(shape)
     obj[properties.PROP_EFFECTOR_SHAPE] = shape
+
+
+def sync_effector_to_referencing_cloners(effector: bpy.types.Object) -> None:
+    if not is_effector_object(effector):
+        return
+
+    from . import modifier_inputs
+
+    for cloner in bpy.data.objects:
+        modifier = modifier_inputs.get_cloner_modifier(cloner)
+        if modifier is None:
+            continue
+        settings = cloner.clone_fields_cloner
+        for slot_index, slot in enumerate(EFFECTOR_SLOT_PROPERTIES):
+            if getattr(settings, slot["object"]) == effector:
+                sync_effector_slot(settings, modifier, slot_index)
+                modifier_inputs.tag_modifier_owner(modifier)
+
+
+def sync_effector_slot(settings, modifier, slot_index: int) -> None:
+    effector = getattr(settings, EFFECTOR_SLOT_PROPERTIES[slot_index]["object"])
+    if not is_effector_object(effector) or not hasattr(effector, "clone_fields_effector"):
+        return
+
+    from . import modifier_inputs
+
+    slot = EFFECTOR_SLOT_PROPERTIES[slot_index]
+    sockets = properties.EFFECTOR_SOCKET_SETS[slot_index]
+    effector_settings = effector.clone_fields_effector
+    configure_effector_object(effector, effector_settings.shape, effector_settings.radius)
+    rename_effector_object(effector, effector_settings.shape)
+
+    modifier_inputs.set_modifier_input(modifier, sockets["object"], effector)
+    for key in EFFECTOR_GLOBAL_KEYS:
+        if key == "shape":
+            continue
+        modifier_inputs.set_modifier_input(
+            modifier,
+            sockets[key],
+            getattr(effector_settings, key),
+        )
+
+    combined_strength = (
+        effector_settings.strength
+        * getattr(settings, slot["strength"])
+        / 10000.0
+    )
+    modifier_inputs.set_modifier_input(modifier, sockets["strength"], combined_strength)
+
+
+def tag_referencing_cloners(effector: bpy.types.Object) -> None:
+    if not is_effector_object(effector):
+        return
+
+    from . import modifier_inputs
+
+    for cloner in bpy.data.objects:
+        modifier = modifier_inputs.get_cloner_modifier(cloner)
+        if modifier is None:
+            continue
+        settings = cloner.clone_fields_cloner
+        if any(
+            getattr(settings, slot["object"]) == effector
+            for slot in EFFECTOR_SLOT_PROPERTIES
+        ):
+            modifier_inputs.tag_modifier_owner(modifier)
+
+
+@persistent
+def _depsgraph_update_post(scene, depsgraph) -> None:
+    for update in depsgraph.updates:
+        datablock = update.id
+        if isinstance(datablock, bpy.types.Object) and is_effector_object(datablock):
+            tag_referencing_cloners(datablock)
+
+
+def register() -> None:
+    if _depsgraph_update_post not in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.append(_depsgraph_update_post)
+
+
+def unregister() -> None:
+    if _depsgraph_update_post in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(_depsgraph_update_post)
