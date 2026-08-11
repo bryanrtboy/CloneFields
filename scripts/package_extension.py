@@ -20,7 +20,13 @@ EXCLUDED_NAMES = {
     ".DS_Store",
 }
 EXCLUDED_SUFFIXES = {
+    ".avif",
+    ".gif",
+    ".jpeg",
+    ".jpg",
     ".pyc",
+    ".png",
+    ".webp",
 }
 
 
@@ -54,4 +60,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

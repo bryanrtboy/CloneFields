@@ -44,6 +44,7 @@ def create_grid_cloner(
     modifier_inputs.set_modifier_input(modifier, properties.SOCKET_SPACING_Y, spacing_y)
     modifier_inputs.set_modifier_input(modifier, properties.SOCKET_SPACING_Z, spacing_z)
     _set_default_distribution_inputs(modifier)
+    _set_default_effector_inputs(modifier)
     _set_default_source_transform(modifier)
 
     cloner[properties.PROP_CLONER_TYPE] = "CLONER"
@@ -84,6 +85,58 @@ def _set_object_settings(
 
     settings = cloner.clone_fields_cloner
     settings.source_object = source_object
+    settings.effector_object = None
+    settings.effector_enabled = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_ENABLED
+    ]
+    settings.effector_invert = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_INVERT
+    ]
+    settings.effector_strength = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_STRENGTH
+    ]
+    settings.effector_radius = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_RADIUS
+    ]
+    settings.effector_falloff = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_FALLOFF
+    ]
+    settings.effector_use_position = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_USE_POSITION
+    ]
+    settings.effector_position_x = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_POSITION_X
+    ]
+    settings.effector_position_y = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_POSITION_Y
+    ]
+    settings.effector_position_z = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_POSITION_Z
+    ]
+    settings.effector_use_rotation = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_USE_ROTATION
+    ]
+    settings.effector_rotation_x = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_ROTATION_X
+    ]
+    settings.effector_rotation_y = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_ROTATION_Y
+    ]
+    settings.effector_rotation_z = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_ROTATION_Z
+    ]
+    settings.effector_use_scale = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_USE_SCALE
+    ]
+    settings.effector_scale_x = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_SCALE_X
+    ]
+    settings.effector_scale_y = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_SCALE_Y
+    ]
+    settings.effector_scale_z = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_SCALE_Z
+    ]
     settings.distribution_mode = "GRID"
     settings.count_x = count_x
     settings.count_y = count_y
@@ -160,6 +213,15 @@ def _set_default_source_transform(modifier: bpy.types.NodesModifier) -> None:
         properties.SOCKET_SOURCE_SCALE_Y,
         properties.SOCKET_SOURCE_SCALE_Z,
     ):
+        modifier_inputs.set_modifier_input(
+            modifier,
+            socket_name,
+            properties.GRID_INPUT_DEFAULTS[socket_name],
+        )
+
+
+def _set_default_effector_inputs(modifier: bpy.types.NodesModifier) -> None:
+    for socket_name in properties.EFFECTOR_VALUE_SOCKET_NAMES:
         modifier_inputs.set_modifier_input(
             modifier,
             socket_name,

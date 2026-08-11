@@ -98,6 +98,15 @@ def _min_vertex_distance(vertices: list[tuple[float, float, float]]) -> float:
     return min(distances)
 
 
+def _max_abs_axis_for_vertices(
+    vertices: list[tuple[float, float, float]],
+    *,
+    axis: int,
+    predicate,
+) -> float:
+    return max(abs(vertex[axis]) for vertex in vertices if predicate(vertex))
+
+
 def _modifier_input_id(
     inputs_module,
     modifier: bpy.types.NodesModifier,
@@ -178,6 +187,10 @@ def main() -> None:
             "Linear",
             "Direction",
             "Radial",
+            "Plain Effector",
+            "Effector Position",
+            "Effector Rotation",
+            "Effector Scale",
             "Source Transform",
             "Position",
             "Rotation",
@@ -373,6 +386,141 @@ def main() -> None:
         assert duplicate_collection is not None
         assert original_collection != duplicate_collection
 
+        bpy.ops.mesh.primitive_cube_add(location=(10.0, 0.0, 0.0))
+        effector_source = bpy.context.object
+        effector_source.name = "Effector Source"
+        effector_result = bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=effector_source.name,
+            count_x=3,
+            count_y=1,
+            count_z=1,
+            spacing_x=2.5,
+            spacing_y=2.0,
+            spacing_z=2.0,
+        )
+        assert effector_result == {"FINISHED"}, effector_result
+        effector_cloner = bpy.context.object
+        base_effector_bounds = _evaluated_bounds_size(effector_cloner)
+        base_effector_center = _evaluated_bounds_center(effector_cloner)
+        add_effector_result = bpy.ops.clone_fields.add_plain_effector("EXEC_DEFAULT")
+        assert add_effector_result == {"FINISHED"}, add_effector_result
+        plain_effector = bpy.context.object
+        assert plain_effector.type == "EMPTY"
+        assert plain_effector.empty_display_type == "SPHERE"
+        assert plain_effector.hide_render
+        assert plain_effector.get(props.PROP_EFFECTOR_TYPE) == "PLAIN"
+        assert effector_cloner.clone_fields_cloner.effector_object == plain_effector
+        assert effector_cloner.clone_fields_cloner.effector_enabled
+        assert effector_cloner.clone_fields_cloner.effector_falloff == 50
+        assert effector_cloner.clone_fields_cloner.effector_use_position
+        assert not effector_cloner.clone_fields_cloner.effector_use_rotation
+        assert not effector_cloner.clone_fields_cloner.effector_use_scale
+        assert abs(effector_cloner.clone_fields_cloner.effector_position_z - 1.0) < 0.0001
+        positioned_effector_center = _evaluated_bounds_center(effector_cloner)
+        assert positioned_effector_center[2] > base_effector_center[2]
+        effector_modifier = effector_cloner.modifiers["Cloner"]
+        effector_object_id = _modifier_input_id(
+            inputs,
+            effector_modifier,
+            props.SOCKET_EFFECTOR_OBJECT,
+        )
+        assert effector_modifier[effector_object_id] == plain_effector
+        effector_cloner.clone_fields_cloner.effector_radius = 1.0
+        effector_cloner.clone_fields_cloner.effector_use_position = False
+        effector_cloner.clone_fields_cloner.effector_use_scale = True
+        effector_cloner.clone_fields_cloner.effector_scale_y = 2.0
+        effector_cloner.update_tag()
+        effector_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        scaled_effector_bounds = _evaluated_bounds_size(effector_cloner)
+        assert scaled_effector_bounds[1] > base_effector_bounds[1]
+        scaled_vertices = _evaluated_vertices(effector_cloner)
+        center_y = _max_abs_axis_for_vertices(
+            scaled_vertices,
+            axis=1,
+            predicate=lambda vertex: abs(vertex[0]) < 1.25,
+        )
+        outside_y = _max_abs_axis_for_vertices(
+            scaled_vertices,
+            axis=1,
+            predicate=lambda vertex: abs(vertex[0]) > 1.25,
+        )
+        assert center_y > outside_y
+
+        effector_cloner.clone_fields_cloner.effector_invert = True
+        effector_cloner.update_tag()
+        effector_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        inverted_vertices = _evaluated_vertices(effector_cloner)
+        inverted_center_y = _max_abs_axis_for_vertices(
+            inverted_vertices,
+            axis=1,
+            predicate=lambda vertex: abs(vertex[0]) < 1.25,
+        )
+        inverted_outside_y = _max_abs_axis_for_vertices(
+            inverted_vertices,
+            axis=1,
+            predicate=lambda vertex: abs(vertex[0]) > 1.25,
+        )
+        assert inverted_outside_y > inverted_center_y
+
+        bpy.ops.object.select_all(action="DESELECT")
+        effector_cloner.select_set(True)
+        bpy.context.view_layer.objects.active = effector_cloner
+        second_effector_result = bpy.ops.clone_fields.add_plain_effector("EXEC_DEFAULT")
+        assert second_effector_result == {"FINISHED"}, second_effector_result
+        second_plain_effector = bpy.context.object
+        assert effector_cloner.clone_fields_cloner.effector2_object == second_plain_effector
+        assert effector_cloner.clone_fields_cloner.effector_object == plain_effector
+        bpy.context.view_layer.objects.active = effector_cloner
+        move_result = bpy.ops.clone_fields.move_plain_effector(
+            "EXEC_DEFAULT",
+            slot_index=1,
+            direction=-1,
+        )
+        assert move_result == {"FINISHED"}, move_result
+        assert effector_cloner.clone_fields_cloner.effector_object == second_plain_effector
+        assert effector_cloner.clone_fields_cloner.effector2_object == plain_effector
+        assert effector_cloner.clone_fields_cloner.selected_effector_slot == 0
+
+        rotation_stack_mesh = bpy.data.meshes.new("Effector Rotation Stack Mesh")
+        rotation_stack_mesh.from_pydata(
+            [(1.0, 0.0, 0.0), (0.0, 0.25, 0.0), (0.0, 0.0, 0.25)],
+            [],
+            [(0, 1, 2)],
+        )
+        rotation_stack_mesh.update()
+        rotation_stack_source = bpy.data.objects.new(
+            "Effector Rotation Stack Source",
+            rotation_stack_mesh,
+        )
+        bpy.context.collection.objects.link(rotation_stack_source)
+        bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=rotation_stack_source.name,
+            count_x=1,
+            count_y=1,
+            count_z=1,
+        )
+        rotation_stack_cloner = bpy.context.object
+        bpy.ops.clone_fields.add_plain_effector("EXEC_DEFAULT")
+        bpy.context.view_layer.objects.active = rotation_stack_cloner
+        bpy.ops.clone_fields.add_plain_effector("EXEC_DEFAULT")
+        rotation_stack_settings = rotation_stack_cloner.clone_fields_cloner
+        rotation_stack_settings.effector_enabled = False
+        rotation_stack_settings.effector2_use_position = False
+        rotation_stack_settings.effector2_use_rotation = True
+        rotation_stack_settings.effector2_rotation_z = 1.5707963267948966
+        rotation_stack_settings.effector2_radius = 10.0
+        rotation_stack_settings.effector2_falloff = 100
+        rotation_stack_modifier = rotation_stack_cloner.modifiers["Cloner"]
+        rotation_stack_cloner.update_tag()
+        rotation_stack_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        rotation_stack_vertices = _evaluated_vertices(rotation_stack_cloner)
+        assert _has_vertex_near(rotation_stack_vertices, (0.0, 1.0, 0.0))
+
         bpy.ops.mesh.primitive_cube_add(location=(6.0, 0.0, 0.0))
         second_source = bpy.context.object
         second_source.name = "Convert Source"
@@ -541,6 +689,63 @@ def main() -> None:
         )
         radial_rotation_vertices = _evaluated_vertices(radial_rotation_cloner)
         assert _has_vertex_near(radial_rotation_vertices, (-0.5, 2.0, 0.0))
+
+        radial_effector_mesh = bpy.data.meshes.new("Radial Effector Rotation Mesh")
+        radial_effector_mesh.from_pydata(
+            [(1.0, 0.0, 0.0), (0.0, 0.25, 0.0), (0.0, 0.0, 0.25)],
+            [],
+            [(0, 1, 2)],
+        )
+        radial_effector_mesh.update()
+        radial_effector_source = bpy.data.objects.new(
+            "Radial Effector Rotation Source",
+            radial_effector_mesh,
+        )
+        bpy.context.collection.objects.link(radial_effector_source)
+        bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=radial_effector_source.name,
+            count_x=1,
+            count_y=1,
+            count_z=1,
+        )
+        radial_effector_cloner = bpy.context.object
+        radial_effector_modifier = radial_effector_cloner.modifiers["Cloner"]
+        radial_effector_mode_id = _modifier_input_id(
+            inputs,
+            radial_effector_modifier,
+            props.SOCKET_DISTRIBUTION_MODE,
+        )
+        radial_effector_count_id = _modifier_input_id(
+            inputs,
+            radial_effector_modifier,
+            props.SOCKET_RADIAL_COUNT,
+        )
+        radial_effector_radius_id = _modifier_input_id(
+            inputs,
+            radial_effector_modifier,
+            props.SOCKET_RADIAL_RADIUS,
+        )
+        radial_effector_modifier[radial_effector_count_id] = 1
+        radial_effector_modifier[radial_effector_radius_id] = 0.0
+        _set_modifier_mode(
+            radial_effector_cloner,
+            radial_effector_modifier,
+            radial_effector_mode_id,
+            2,
+        )
+        bpy.ops.clone_fields.add_plain_effector("EXEC_DEFAULT")
+        radial_effector_settings = radial_effector_cloner.clone_fields_cloner
+        radial_effector_settings.effector_use_position = False
+        radial_effector_settings.effector_use_rotation = True
+        radial_effector_settings.effector_rotation_z = 1.5707963267948966
+        radial_effector_settings.effector_radius = 10.0
+        radial_effector_settings.effector_falloff = 100
+        radial_effector_cloner.update_tag()
+        radial_effector_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        radial_effector_vertices = _evaluated_vertices(radial_effector_cloner)
+        assert _has_vertex_near(radial_effector_vertices, (0.0, 1.0, 0.0))
 
         first_mesh = bpy.data.meshes.new("Alternating First Mesh")
         first_mesh.from_pydata([(0.0, 0.0, 0.0)], [], [])

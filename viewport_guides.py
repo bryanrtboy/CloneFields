@@ -7,7 +7,8 @@ import math
 import bpy
 from mathutils import Vector
 
-from . import modifier_inputs
+from . import modifier_inputs, properties
+from .operators import EFFECTOR_SLOT_PROPERTIES
 
 
 _DRAW_HANDLE = None
@@ -38,10 +39,12 @@ def _draw_viewport_guides() -> None:
     except Exception:
         return
 
+    selected_objects = list(bpy.context.selected_objects)
     selected_cloners = [
         obj for obj in bpy.context.selected_objects if modifier_inputs.is_cloner_object(obj)
     ]
-    if not selected_cloners:
+    effector_guides = _effector_guides_for_selection(selected_objects)
+    if not selected_cloners and not effector_guides:
         return
 
     try:
@@ -59,6 +62,11 @@ def _draw_viewport_guides() -> None:
         elif settings.distribution_mode == "RADIAL":
             lines = _radial_guide_lines(cloner, settings)
             _draw_lines(batch_for_shader, shader, lines, (1.0, 0.85, 0.1, 0.9))
+        for slot in EFFECTOR_SLOT_PROPERTIES:
+            _draw_effector_guides(batch_for_shader, shader, settings, slot)
+    for settings in effector_guides:
+        for slot in EFFECTOR_SLOT_PROPERTIES:
+            _draw_effector_guides(batch_for_shader, shader, settings, slot)
     gpu.state.line_width_set(1.0)
     gpu.state.blend_set("NONE")
 
@@ -130,6 +138,42 @@ def _radial_guide_lines(cloner: bpy.types.Object, settings) -> list[tuple[float,
         dot = Vector((outer_radius, 0.0, 0.0))
     lines.extend(_sphere_lines(matrix, dot, max(0.05, outer_radius * 0.025)))
     return lines
+
+
+def _effector_guides_for_selection(selected_objects) -> list:
+    selected_effectors = {
+        obj
+        for obj in selected_objects
+        if obj.get(properties.PROP_EFFECTOR_TYPE) == "PLAIN"
+    }
+    if not selected_effectors:
+        return []
+
+    settings = []
+    for cloner in bpy.data.objects:
+        if not modifier_inputs.is_cloner_object(cloner):
+            continue
+        cloner_settings = cloner.clone_fields_cloner
+        if any(
+            getattr(cloner_settings, slot["object"]) in selected_effectors
+            for slot in EFFECTOR_SLOT_PROPERTIES
+        ):
+            settings.append(cloner_settings)
+    return settings
+
+
+def _draw_effector_guides(batch_for_shader, shader, settings, slot) -> None:
+    effector = getattr(settings, slot["object"])
+    if effector is None:
+        return
+
+    scale = max(abs(effector.scale.x), abs(effector.scale.y), abs(effector.scale.z))
+    outer_radius = max(0.0, getattr(settings, slot["radius"]) * scale)
+    inner_radius = outer_radius * min(1.0, max(0.0, getattr(settings, slot["falloff"]) / 100.0))
+    outer = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), outer_radius)
+    inner = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), inner_radius)
+    _draw_lines(batch_for_shader, shader, outer, (0.35, 0.75, 1.0, 0.8))
+    _draw_lines(batch_for_shader, shader, inner, (1.0, 0.55, 0.15, 0.8))
 
 
 def source_bounds_half_extents(cloner: bpy.types.Object) -> Vector:

@@ -26,9 +26,9 @@ To use it, select a source object and choose:
 Add > Clone Fields > Cloner
 ```
 
-The created `Cloner` object contains the live Geometry Nodes modifier. The
-source object is parented under the cloner and hidden while the modifier is
-enabled.
+The created `Cloner` object contains the live Geometry Nodes modifier and starts
+as a 3 by 3 grid. The source object is parented under the cloner and hidden
+while the modifier is enabled.
 
 The Cloner modifier currently supports:
 
@@ -51,6 +51,14 @@ makes the source transform follow the radial step.
 To use multiple sources, parent additional source objects directly under the
 Cloner. Clone Fields alternates through the child sources by clone index. Empty
 objects can be used as blank/spacer sources.
+
+To add Plain Effectors, select a Cloner and use the `Add Plain Effector` button
+in the Clone Fields modifier panel. This creates visible sphere controller
+objects in the scene. Move, scale, or keyframe the controller objects, then use
+the stack controls to select, enable, reorder, and tune each effector. Only the
+selected effector's settings are shown. Falloff is a 0-100% slider where 100%
+gives a hard field edge and 0% blends across the full field radius. The Cloner's
+source Offset controls are hidden until enabled.
 
 ## Build the Zip
 

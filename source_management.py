@@ -338,6 +338,11 @@ def _current_grid_values(modifier: bpy.types.NodesModifier) -> dict:
             properties.SOCKET_SOURCE_COLLECTION,
         }:
             continue
+        if socket_name in properties.EFFECTOR_OBJECT_SOCKET_NAMES:
+            value = modifier_inputs.get_modifier_input(modifier, socket_name)
+            if value is not None:
+                values[socket_name] = value
+            continue
         value = modifier_inputs.get_modifier_input(modifier, socket_name)
         values[socket_name] = (
             value

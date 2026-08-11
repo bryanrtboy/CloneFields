@@ -49,6 +49,124 @@ def _sync_source(self, context) -> None:
     source_management.assign_source(obj, source)
 
 
+def _sync_effector_object(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_OBJECT, self.effector_object)
+    self.effector_enabled = self.effector_object is not None
+    if self.effector_object is not None:
+        self.effector_object.empty_display_size = self.effector_radius
+
+
+def _sync_effector_enabled(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_EFFECTOR_ENABLED,
+        self.effector_enabled,
+    )
+
+
+def _sync_effector_invert(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_EFFECTOR_INVERT,
+        self.effector_invert,
+    )
+
+
+def _sync_effector_strength(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_EFFECTOR_STRENGTH,
+        self.effector_strength,
+    )
+
+
+def _sync_effector_radius(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_RADIUS, self.effector_radius)
+    if self.effector_object is not None:
+        self.effector_object.empty_display_size = self.effector_radius
+
+
+def _sync_effector_falloff(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_FALLOFF, self.effector_falloff)
+
+
+def _sync_effector_use_position(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_EFFECTOR_USE_POSITION,
+        self.effector_use_position,
+    )
+
+
+def _sync_effector_position_x(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_POSITION_X, self.effector_position_x)
+
+
+def _sync_effector_position_y(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_POSITION_Y, self.effector_position_y)
+
+
+def _sync_effector_position_z(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_POSITION_Z, self.effector_position_z)
+
+
+def _sync_effector_use_rotation(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_EFFECTOR_USE_ROTATION,
+        self.effector_use_rotation,
+    )
+
+
+def _sync_effector_rotation_x(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_ROTATION_X, self.effector_rotation_x)
+
+
+def _sync_effector_rotation_y(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_ROTATION_Y, self.effector_rotation_y)
+
+
+def _sync_effector_rotation_z(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_ROTATION_Z, self.effector_rotation_z)
+
+
+def _sync_effector_use_scale(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_EFFECTOR_USE_SCALE,
+        self.effector_use_scale,
+    )
+
+
+def _sync_effector_scale_x(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_SCALE_X, self.effector_scale_x)
+
+
+def _sync_effector_scale_y(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_SCALE_Y, self.effector_scale_y)
+
+
+def _sync_effector_scale_z(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_EFFECTOR_SCALE_Z, self.effector_scale_z)
+
+
+def _sync_effector_slot_value(
+    self,
+    slot_index: int,
+    socket_key: str,
+    property_name: str,
+) -> None:
+    value = getattr(self, property_name)
+    _sync_modifier_value(self, properties.EFFECTOR_SOCKET_SETS[slot_index][socket_key], value)
+    if socket_key == "object":
+        enabled_property = f"effector{slot_index + 1}_enabled"
+        setattr(self, enabled_property, value is not None)
+    if socket_key == "radius":
+        effector = getattr(self, f"effector{slot_index + 1}_object")
+        if effector is not None:
+            effector.empty_display_size = value
+
+
 def _sync_distribution_mode(self, context) -> None:
     _sync_modifier_value(
         self,
@@ -190,6 +308,336 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         description="Object to instance across the grid",
         type=bpy.types.Object,
         update=_sync_source,
+    )
+    effector_object: PointerProperty(
+        name=properties.SOCKET_EFFECTOR_OBJECT,
+        description="Plain Effector controller object",
+        type=bpy.types.Object,
+        update=_sync_effector_object,
+    )
+    effector_enabled: BoolProperty(
+        name="Enabled",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_ENABLED],
+        update=_sync_effector_enabled,
+    )
+    effector_invert: BoolProperty(
+        name="Inverse",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_INVERT],
+        update=_sync_effector_invert,
+    )
+    effector_strength: FloatProperty(
+        name="Strength",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_STRENGTH],
+        min=0,
+        update=_sync_effector_strength,
+    )
+    effector_radius: FloatProperty(
+        name="Radius",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_RADIUS],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_effector_radius,
+    )
+    effector_falloff: IntProperty(
+        name="Falloff",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_FALLOFF],
+        min=0,
+        max=100,
+        subtype="PERCENTAGE",
+        update=_sync_effector_falloff,
+    )
+    effector_use_position: BoolProperty(
+        name="Position",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_USE_POSITION],
+        update=_sync_effector_use_position,
+    )
+    effector_position_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_POSITION_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_POSITION_X],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_effector_position_x,
+    )
+    effector_position_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_POSITION_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_POSITION_Y],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_effector_position_y,
+    )
+    effector_position_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_POSITION_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_POSITION_Z],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_effector_position_z,
+    )
+    effector_use_rotation: BoolProperty(
+        name="Rotation",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_USE_ROTATION],
+        update=_sync_effector_use_rotation,
+    )
+    effector_rotation_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_ROTATION_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_ROTATION_X],
+        subtype="ANGLE",
+        update=_sync_effector_rotation_x,
+    )
+    effector_rotation_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_ROTATION_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_ROTATION_Y],
+        subtype="ANGLE",
+        update=_sync_effector_rotation_y,
+    )
+    effector_rotation_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_ROTATION_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_ROTATION_Z],
+        subtype="ANGLE",
+        update=_sync_effector_rotation_z,
+    )
+    effector_use_scale: BoolProperty(
+        name="Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_USE_SCALE],
+        update=_sync_effector_use_scale,
+    )
+    effector_scale_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_SCALE_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_X],
+        min=0.0,
+        update=_sync_effector_scale_x,
+    )
+    effector_scale_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_SCALE_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_Y],
+        min=0.0,
+        update=_sync_effector_scale_y,
+    )
+    effector_scale_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_SCALE_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_Z],
+        min=0.0,
+        update=_sync_effector_scale_z,
+    )
+    effector2_object: PointerProperty(
+        name=properties.SOCKET_EFFECTOR_2_OBJECT,
+        description="Second Plain Effector controller object",
+        type=bpy.types.Object,
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "object", "effector2_object"),
+    )
+    effector2_enabled: BoolProperty(
+        name="Enabled",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_ENABLED],
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "enabled", "effector2_enabled"),
+    )
+    effector2_invert: BoolProperty(
+        name="Inverse",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_INVERT],
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "invert", "effector2_invert"),
+    )
+    effector2_strength: FloatProperty(
+        name="Strength",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_STRENGTH],
+        min=0,
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "strength", "effector2_strength"),
+    )
+    effector2_radius: FloatProperty(
+        name="Radius",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_RADIUS],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "radius", "effector2_radius"),
+    )
+    effector2_falloff: IntProperty(
+        name="Falloff",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_FALLOFF],
+        min=0,
+        max=100,
+        subtype="PERCENTAGE",
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "falloff", "effector2_falloff"),
+    )
+    effector2_use_position: BoolProperty(
+        name="Position",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_USE_POSITION],
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "use_position", "effector2_use_position"),
+    )
+    effector2_position_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_2_POSITION_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_POSITION_X],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "position_x", "effector2_position_x"),
+    )
+    effector2_position_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_2_POSITION_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_POSITION_Y],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "position_y", "effector2_position_y"),
+    )
+    effector2_position_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_2_POSITION_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_POSITION_Z],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "position_z", "effector2_position_z"),
+    )
+    effector2_use_rotation: BoolProperty(
+        name="Rotation",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_USE_ROTATION],
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "use_rotation", "effector2_use_rotation"),
+    )
+    effector2_rotation_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_2_ROTATION_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_ROTATION_X],
+        subtype="ANGLE",
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "rotation_x", "effector2_rotation_x"),
+    )
+    effector2_rotation_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_2_ROTATION_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_ROTATION_Y],
+        subtype="ANGLE",
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "rotation_y", "effector2_rotation_y"),
+    )
+    effector2_rotation_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_2_ROTATION_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_ROTATION_Z],
+        subtype="ANGLE",
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "rotation_z", "effector2_rotation_z"),
+    )
+    effector2_use_scale: BoolProperty(
+        name="Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_USE_SCALE],
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "use_scale", "effector2_use_scale"),
+    )
+    effector2_scale_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_2_SCALE_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_SCALE_X],
+        min=0.0,
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "scale_x", "effector2_scale_x"),
+    )
+    effector2_scale_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_2_SCALE_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_SCALE_Y],
+        min=0.0,
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "scale_y", "effector2_scale_y"),
+    )
+    effector2_scale_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_2_SCALE_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_SCALE_Z],
+        min=0.0,
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "scale_z", "effector2_scale_z"),
+    )
+    effector3_object: PointerProperty(
+        name=properties.SOCKET_EFFECTOR_3_OBJECT,
+        description="Third Plain Effector controller object",
+        type=bpy.types.Object,
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "object", "effector3_object"),
+    )
+    effector3_enabled: BoolProperty(
+        name="Enabled",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_ENABLED],
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "enabled", "effector3_enabled"),
+    )
+    effector3_invert: BoolProperty(
+        name="Inverse",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_INVERT],
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "invert", "effector3_invert"),
+    )
+    effector3_strength: FloatProperty(
+        name="Strength",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_STRENGTH],
+        min=0,
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "strength", "effector3_strength"),
+    )
+    effector3_radius: FloatProperty(
+        name="Radius",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_RADIUS],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "radius", "effector3_radius"),
+    )
+    effector3_falloff: IntProperty(
+        name="Falloff",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_FALLOFF],
+        min=0,
+        max=100,
+        subtype="PERCENTAGE",
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "falloff", "effector3_falloff"),
+    )
+    effector3_use_position: BoolProperty(
+        name="Position",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_USE_POSITION],
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "use_position", "effector3_use_position"),
+    )
+    effector3_position_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_3_POSITION_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_POSITION_X],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "position_x", "effector3_position_x"),
+    )
+    effector3_position_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_3_POSITION_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_POSITION_Y],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "position_y", "effector3_position_y"),
+    )
+    effector3_position_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_3_POSITION_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_POSITION_Z],
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "position_z", "effector3_position_z"),
+    )
+    effector3_use_rotation: BoolProperty(
+        name="Rotation",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_USE_ROTATION],
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "use_rotation", "effector3_use_rotation"),
+    )
+    effector3_rotation_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_3_ROTATION_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_ROTATION_X],
+        subtype="ANGLE",
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "rotation_x", "effector3_rotation_x"),
+    )
+    effector3_rotation_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_3_ROTATION_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_ROTATION_Y],
+        subtype="ANGLE",
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "rotation_y", "effector3_rotation_y"),
+    )
+    effector3_rotation_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_3_ROTATION_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_ROTATION_Z],
+        subtype="ANGLE",
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "rotation_z", "effector3_rotation_z"),
+    )
+    effector3_use_scale: BoolProperty(
+        name="Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_USE_SCALE],
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "use_scale", "effector3_use_scale"),
+    )
+    effector3_scale_x: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_3_SCALE_X,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_SCALE_X],
+        min=0.0,
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "scale_x", "effector3_scale_x"),
+    )
+    effector3_scale_y: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_3_SCALE_Y,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_SCALE_Y],
+        min=0.0,
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "scale_y", "effector3_scale_y"),
+    )
+    effector3_scale_z: FloatProperty(
+        name=properties.SOCKET_EFFECTOR_3_SCALE_Z,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_SCALE_Z],
+        min=0.0,
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "scale_z", "effector3_scale_z"),
     )
     distribution_mode: EnumProperty(
         name="Mode",
@@ -360,6 +808,16 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         min=0.0,
         update=_sync_source_scale_z,
     )
+    show_source_offset: BoolProperty(
+        name="Offset",
+        default=False,
+    )
+    selected_effector_slot: IntProperty(
+        name="Selected Effector",
+        default=0,
+        min=0,
+        max=2,
+    )
     show_source_position: BoolProperty(
         name="Position",
         default=False,
@@ -369,6 +827,18 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=True,
     )
     show_source_scale: BoolProperty(
+        name="Scale",
+        default=True,
+    )
+    show_effector_position: BoolProperty(
+        name="Position",
+        default=False,
+    )
+    show_effector_rotation: BoolProperty(
+        name="Rotation",
+        default=False,
+    )
+    show_effector_scale: BoolProperty(
         name="Scale",
         default=True,
     )
