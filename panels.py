@@ -2,8 +2,7 @@
 
 import bpy
 
-from . import modifier_inputs
-from .operators import EFFECTOR_SLOT_PROPERTIES
+from . import effectors, modifier_inputs
 
 
 class CLONE_FIELDS_PT_cloner_modifier(bpy.types.Panel):
@@ -39,13 +38,17 @@ class CLONE_FIELDS_PT_cloner_modifier(bpy.types.Panel):
 
 
 def _draw_grid(layout, settings) -> None:
+    layout.prop(settings, "spacing_mode")
     _draw_xyz_row(layout, settings, "Count", "count_x", "count_y", "count_z")
-    _draw_xyz_row(layout, settings, "Spacing", "spacing_x", "spacing_y", "spacing_z")
+    label = "Spacing" if settings.spacing_mode == "PER_STEP" else "Endpoint"
+    _draw_xyz_row(layout, settings, label, "spacing_x", "spacing_y", "spacing_z")
 
 
 def _draw_linear(layout, settings) -> None:
+    layout.prop(settings, "spacing_mode")
     layout.prop(settings, "linear_count")
-    layout.prop(settings, "linear_spacing")
+    label = "Spacing" if settings.spacing_mode == "PER_STEP" else "Endpoint"
+    layout.prop(settings, "linear_spacing", text=label)
     _draw_xyz_row(
         layout,
         settings,
@@ -68,7 +71,7 @@ def _draw_effectors(layout, settings) -> None:
     layout.label(text="Effectors")
     list_box = layout.box()
     has_empty_slot = False
-    for index, slot in enumerate(EFFECTOR_SLOT_PROPERTIES):
+    for index, slot in enumerate(effectors.EFFECTOR_SLOT_PROPERTIES):
         effector = getattr(settings, slot["object"])
         if effector is None:
             has_empty_slot = True
@@ -82,15 +85,25 @@ def _draw_effectors(layout, settings) -> None:
             depress=index == settings.selected_effector_slot,
         )
         select.slot_index = index
+        select_scene = row.operator(
+            "clone_fields.select_effector_object",
+            text="",
+            icon="RESTRICT_SELECT_OFF",
+        )
+        select_scene.slot_index = index
         move_up = row.operator("clone_fields.move_plain_effector", text="", icon="TRIA_UP")
         move_up.slot_index = index
         move_up.direction = -1
         move_down = row.operator("clone_fields.move_plain_effector", text="", icon="TRIA_DOWN")
         move_down.slot_index = index
         move_down.direction = 1
+        delete = row.operator("clone_fields.delete_effector", text="", icon="X")
+        delete.slot_index = index
 
     if has_empty_slot:
-        list_box.operator("clone_fields.add_plain_effector", text="Add Plain Effector")
+        add_row = list_box.row(align=True)
+        add_row.operator("clone_fields.add_plain_effector", text="New Basic Effector")
+        add_row.operator("clone_fields.link_existing_effector", text="Link Existing")
 
     selected_slot = _selected_effector_slot(settings)
     if selected_slot is not None:
@@ -130,6 +143,10 @@ def _draw_source_transform(layout, settings) -> None:
 
 def _draw_effector_slot(layout, settings, slot: dict) -> None:
     box = layout.box()
+    effector = getattr(settings, slot["object"])
+    if effector is not None:
+        box.label(text=effector.name)
+    box.prop(settings, slot["shape"], text="Field")
     box.prop(settings, slot["invert"])
     box.prop(settings, slot["strength"])
     box.prop(settings, slot["radius"])
@@ -149,11 +166,14 @@ def _draw_effector_slot(layout, settings, slot: dict) -> None:
 
 
 def _selected_effector_slot(settings):
-    selected_index = min(max(settings.selected_effector_slot, 0), len(EFFECTOR_SLOT_PROPERTIES) - 1)
-    selected_slot = EFFECTOR_SLOT_PROPERTIES[selected_index]
+    selected_index = min(
+        max(settings.selected_effector_slot, 0),
+        len(effectors.EFFECTOR_SLOT_PROPERTIES) - 1,
+    )
+    selected_slot = effectors.EFFECTOR_SLOT_PROPERTIES[selected_index]
     if getattr(settings, selected_slot["object"]) is not None:
         return selected_slot
-    for slot in EFFECTOR_SLOT_PROPERTIES:
+    for slot in effectors.EFFECTOR_SLOT_PROPERTIES:
         if getattr(settings, slot["object"]) is not None:
             return slot
     return None

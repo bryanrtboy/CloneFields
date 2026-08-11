@@ -6,6 +6,7 @@ import importlib
 
 from . import (
     cloner,
+    effectors,
     gizmos,
     geometry_nodes,
     menus,
@@ -22,6 +23,7 @@ from .geometry_nodes import grid
 
 modules = (
     properties,
+    effectors,
     modifier_inputs,
     source_management,
     object_settings,

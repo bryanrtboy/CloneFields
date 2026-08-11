@@ -87,6 +87,8 @@ class CLONE_FIELDS_GGT_cloner_handles(bpy.types.GizmoGroup):
         count = getattr(settings, f"count_{axis.lower()}")
         spacing = getattr(settings, f"spacing_{axis.lower()}")
         source_half = getattr(source_bounds_half_extents(cloner), axis.lower())
+        if settings.spacing_mode == "ENDPOINT":
+            return max(0.0, spacing * 0.5) + source_half
         return max(0.0, (count - 1) * spacing * 0.5) + source_half
 
     def _set_handle_offset(self, axis: str, value: float) -> None:
@@ -135,6 +137,9 @@ def apply_handle_offset(cloner: bpy.types.Object, axis: str, value: float) -> No
     count = getattr(settings, f"count_{axis.lower()}")
     source_half = getattr(source_bounds_half_extents(cloner), axis.lower())
     point_half_extent = max(0.0, value - source_half)
+    if settings.spacing_mode == "ENDPOINT":
+        setattr(settings, f"spacing_{axis.lower()}", point_half_extent * 2.0)
+        return
     if count > 1:
         setattr(settings, f"spacing_{axis.lower()}", (point_half_extent * 2.0) / (count - 1))
     else:

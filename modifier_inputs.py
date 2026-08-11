@@ -14,6 +14,7 @@ GRID_SOCKET_NAMES = (
     *properties.EFFECTOR_OBJECT_SOCKET_NAMES,
     *properties.EFFECTOR_VALUE_SOCKET_NAMES,
     properties.SOCKET_DISTRIBUTION_MODE,
+    properties.SOCKET_SPACING_MODE,
     properties.SOCKET_COUNT_X,
     properties.SOCKET_COUNT_Y,
     properties.SOCKET_COUNT_Z,

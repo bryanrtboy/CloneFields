@@ -3,71 +3,10 @@
 import bpy
 from bpy.props import FloatProperty, IntProperty, StringProperty
 
-from . import cloner, modifier_inputs, properties
+from . import cloner, effectors, modifier_inputs, properties
 
 
-EFFECTOR_SLOT_PROPERTIES = (
-    {
-        "object": "effector_object",
-        "enabled": "effector_enabled",
-        "invert": "effector_invert",
-        "strength": "effector_strength",
-        "radius": "effector_radius",
-        "falloff": "effector_falloff",
-        "use_position": "effector_use_position",
-        "position_x": "effector_position_x",
-        "position_y": "effector_position_y",
-        "position_z": "effector_position_z",
-        "use_rotation": "effector_use_rotation",
-        "rotation_x": "effector_rotation_x",
-        "rotation_y": "effector_rotation_y",
-        "rotation_z": "effector_rotation_z",
-        "use_scale": "effector_use_scale",
-        "scale_x": "effector_scale_x",
-        "scale_y": "effector_scale_y",
-        "scale_z": "effector_scale_z",
-    },
-    {
-        "object": "effector2_object",
-        "enabled": "effector2_enabled",
-        "invert": "effector2_invert",
-        "strength": "effector2_strength",
-        "radius": "effector2_radius",
-        "falloff": "effector2_falloff",
-        "use_position": "effector2_use_position",
-        "position_x": "effector2_position_x",
-        "position_y": "effector2_position_y",
-        "position_z": "effector2_position_z",
-        "use_rotation": "effector2_use_rotation",
-        "rotation_x": "effector2_rotation_x",
-        "rotation_y": "effector2_rotation_y",
-        "rotation_z": "effector2_rotation_z",
-        "use_scale": "effector2_use_scale",
-        "scale_x": "effector2_scale_x",
-        "scale_y": "effector2_scale_y",
-        "scale_z": "effector2_scale_z",
-    },
-    {
-        "object": "effector3_object",
-        "enabled": "effector3_enabled",
-        "invert": "effector3_invert",
-        "strength": "effector3_strength",
-        "radius": "effector3_radius",
-        "falloff": "effector3_falloff",
-        "use_position": "effector3_use_position",
-        "position_x": "effector3_position_x",
-        "position_y": "effector3_position_y",
-        "position_z": "effector3_position_z",
-        "use_rotation": "effector3_use_rotation",
-        "rotation_x": "effector3_rotation_x",
-        "rotation_y": "effector3_rotation_y",
-        "rotation_z": "effector3_rotation_z",
-        "use_scale": "effector3_use_scale",
-        "scale_x": "effector3_scale_x",
-        "scale_y": "effector3_scale_y",
-        "scale_z": "effector3_scale_z",
-    },
-)
+EFFECTOR_SLOT_PROPERTIES = effectors.EFFECTOR_SLOT_PROPERTIES
 
 
 class CLONE_FIELDS_OT_add_cloner(bpy.types.Operator):
@@ -160,8 +99,8 @@ class CLONE_FIELDS_OT_add_cloner(bpy.types.Operator):
 
 class CLONE_FIELDS_OT_add_plain_effector(bpy.types.Operator):
     bl_idname = "clone_fields.add_plain_effector"
-    bl_label = "Add Plain Effector"
-    bl_description = "Add a spherical Plain Effector to the active Cloner"
+    bl_label = "Add Basic Effector"
+    bl_description = "Add a spherical Basic Effector to the active Cloner"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -174,41 +113,82 @@ class CLONE_FIELDS_OT_add_plain_effector(bpy.types.Operator):
         settings = cloner_object.clone_fields_cloner
         slot_index = _first_empty_effector_slot(settings)
         if slot_index is None:
-            self.report({"ERROR"}, "This milestone supports up to three Plain Effectors")
+            self.report({"ERROR"}, "This milestone supports up to three Effectors")
             return {"CANCELLED"}
         slot_properties = EFFECTOR_SLOT_PROPERTIES[slot_index]
-        effector = bpy.data.objects.new("Plain Effector", None)
-        effector.empty_display_type = "SPHERE"
+        shape = getattr(settings, slot_properties["shape"])
+        effector = bpy.data.objects.new(effectors.basic_effector_name(shape), None)
         radius = properties.GRID_INPUT_DEFAULTS[
             properties.EFFECTOR_SOCKET_SETS[slot_index]["radius"]
         ]
-        effector.empty_display_size = radius
-        effector.show_name = True
-        effector.hide_render = True
-        effector[properties.PROP_EFFECTOR_TYPE] = "PLAIN"
+        effectors.configure_effector_object(effector, shape, radius)
         context.collection.objects.link(effector)
         effector.location = cloner_object.location
 
-        _reset_effector_slot(settings, slot_index)
-        setattr(settings, slot_properties["object"], effector)
-        setattr(settings, slot_properties["enabled"], True)
-        settings.selected_effector_slot = slot_index
-        modifier_inputs.set_modifier_input(
-            modifier,
-            properties.EFFECTOR_SOCKET_SETS[slot_index]["object"],
-            effector,
-        )
+        _assign_effector_to_slot(settings, modifier, slot_index, effector, shape)
 
         bpy.ops.object.select_all(action="DESELECT")
-        effector.select_set(True)
-        context.view_layer.objects.active = effector
+        cloner_object.select_set(True)
+        context.view_layer.objects.active = cloner_object
+        return {"FINISHED"}
+
+
+class CLONE_FIELDS_OT_link_existing_effector(bpy.types.Operator):
+    bl_idname = "clone_fields.link_existing_effector"
+    bl_label = "Link Existing Effector"
+    bl_description = "Link an existing Clone Fields Effector to the active Cloner"
+    bl_options = {"REGISTER", "UNDO"}
+
+    effector_object_name: StringProperty(
+        name="Effector",
+        description="Existing Clone Fields Effector to link",
+    )
+
+    def invoke(self, context, event):
+        for obj in bpy.data.objects:
+            if effectors.is_effector_object(obj):
+                self.effector_object_name = obj.name
+                break
+        return context.window_manager.invoke_props_dialog(self)
+
+    def draw(self, context):
+        self.layout.prop_search(self, "effector_object_name", context.scene, "objects")
+
+    def execute(self, context):
+        cloner_object = context.object
+        modifier = modifier_inputs.get_cloner_modifier(cloner_object)
+        if modifier is None:
+            self.report({"ERROR"}, "Select a Clone Fields cloner first")
+            return {"CANCELLED"}
+
+        effector = bpy.data.objects.get(self.effector_object_name)
+        if not effectors.is_effector_object(effector):
+            self.report({"ERROR"}, "Choose a Clone Fields Effector")
+            return {"CANCELLED"}
+
+        settings = cloner_object.clone_fields_cloner
+        if _effector_already_linked(settings, effector):
+            self.report({"ERROR"}, "That Effector is already linked to this Cloner")
+            return {"CANCELLED"}
+
+        slot_index = _first_empty_effector_slot(settings)
+        if slot_index is None:
+            self.report({"ERROR"}, "This milestone supports up to three Effectors")
+            return {"CANCELLED"}
+
+        shape = effector.get(properties.PROP_EFFECTOR_SHAPE, effectors.FIELD_SHAPE_SPHERE)
+        _assign_effector_to_slot(settings, modifier, slot_index, effector, shape)
+
+        bpy.ops.object.select_all(action="DESELECT")
+        cloner_object.select_set(True)
+        context.view_layer.objects.active = cloner_object
         return {"FINISHED"}
 
 
 class CLONE_FIELDS_OT_move_plain_effector(bpy.types.Operator):
     bl_idname = "clone_fields.move_plain_effector"
-    bl_label = "Move Plain Effector"
-    bl_description = "Move a Plain Effector up or down in the Cloner stack"
+    bl_label = "Move Effector"
+    bl_description = "Move an Effector up or down in the Cloner stack"
     bl_options = {"REGISTER", "UNDO"}
 
     slot_index: IntProperty(min=0, max=2)
@@ -232,8 +212,8 @@ class CLONE_FIELDS_OT_move_plain_effector(bpy.types.Operator):
 
 class CLONE_FIELDS_OT_select_plain_effector(bpy.types.Operator):
     bl_idname = "clone_fields.select_plain_effector"
-    bl_label = "Select Plain Effector"
-    bl_description = "Show this Plain Effector's settings"
+    bl_label = "Select Effector"
+    bl_description = "Show this Effector's settings"
     bl_options = {"REGISTER", "UNDO"}
 
     slot_index: IntProperty(min=0, max=2)
@@ -248,11 +228,77 @@ class CLONE_FIELDS_OT_select_plain_effector(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class CLONE_FIELDS_OT_select_effector_object(bpy.types.Operator):
+    bl_idname = "clone_fields.select_effector_object"
+    bl_label = "Select Effector Object"
+    bl_description = "Select this Effector in the scene for moving or animation"
+    bl_options = {"REGISTER", "UNDO"}
+
+    slot_index: IntProperty(min=0, max=2)
+
+    def execute(self, context):
+        cloner_object = context.object
+        if modifier_inputs.get_cloner_modifier(cloner_object) is None:
+            self.report({"ERROR"}, "Select a Clone Fields cloner first")
+            return {"CANCELLED"}
+
+        settings = cloner_object.clone_fields_cloner
+        settings.selected_effector_slot = self.slot_index
+        effector = getattr(settings, EFFECTOR_SLOT_PROPERTIES[self.slot_index]["object"])
+        if effector is None:
+            return {"CANCELLED"}
+
+        bpy.ops.object.select_all(action="DESELECT")
+        effector.select_set(True)
+        context.view_layer.objects.active = effector
+        return {"FINISHED"}
+
+
+class CLONE_FIELDS_OT_delete_effector(bpy.types.Operator):
+    bl_idname = "clone_fields.delete_effector"
+    bl_label = "Delete Effector"
+    bl_description = "Remove this Effector from the stack and delete its scene object"
+    bl_options = {"REGISTER", "UNDO"}
+
+    slot_index: IntProperty(min=0, max=2)
+
+    def execute(self, context):
+        cloner_object = context.object
+        if modifier_inputs.get_cloner_modifier(cloner_object) is None:
+            self.report({"ERROR"}, "Select a Clone Fields cloner first")
+            return {"CANCELLED"}
+
+        settings = cloner_object.clone_fields_cloner
+        slot = EFFECTOR_SLOT_PROPERTIES[self.slot_index]
+        effector = getattr(settings, slot["object"])
+        if effector is None:
+            return {"CANCELLED"}
+
+        for index in range(self.slot_index, len(EFFECTOR_SLOT_PROPERTIES) - 1):
+            _copy_effector_slot(settings, index + 1, index)
+        _clear_effector_slot(settings, len(EFFECTOR_SLOT_PROPERTIES) - 1)
+
+        if not _is_effector_referenced(effector) and effector.name in bpy.data.objects:
+            bpy.data.objects.remove(effector, do_unlink=True)
+
+        settings.selected_effector_slot = _nearest_used_effector_slot(
+            settings,
+            min(self.slot_index, len(EFFECTOR_SLOT_PROPERTIES) - 1),
+        )
+        bpy.ops.object.select_all(action="DESELECT")
+        cloner_object.select_set(True)
+        context.view_layer.objects.active = cloner_object
+        return {"FINISHED"}
+
+
 classes = (
     CLONE_FIELDS_OT_add_cloner,
     CLONE_FIELDS_OT_add_plain_effector,
+    CLONE_FIELDS_OT_link_existing_effector,
     CLONE_FIELDS_OT_move_plain_effector,
     CLONE_FIELDS_OT_select_plain_effector,
+    CLONE_FIELDS_OT_select_effector_object,
+    CLONE_FIELDS_OT_delete_effector,
 )
 
 
@@ -263,13 +309,82 @@ def _first_empty_effector_slot(settings) -> int | None:
     return None
 
 
+def _assign_effector_to_slot(
+    settings,
+    modifier,
+    slot_index: int,
+    effector: bpy.types.Object,
+    shape: str,
+) -> None:
+    slot_properties = EFFECTOR_SLOT_PROPERTIES[slot_index]
+    _reset_effector_slot(settings, slot_index)
+    setattr(settings, slot_properties["shape"], shape)
+    setattr(settings, slot_properties["object"], effector)
+    setattr(settings, slot_properties["enabled"], True)
+    settings.selected_effector_slot = slot_index
+    modifier_inputs.set_modifier_input(
+        modifier,
+        properties.EFFECTOR_SOCKET_SETS[slot_index]["object"],
+        effector,
+    )
+
+
+def _effector_already_linked(settings, effector: bpy.types.Object) -> bool:
+    return any(
+        getattr(settings, slot["object"]) == effector
+        for slot in EFFECTOR_SLOT_PROPERTIES
+    )
+
+
 def _reset_effector_slot(settings, slot_index: int) -> None:
     slot_properties = EFFECTOR_SLOT_PROPERTIES[slot_index]
     socket_set = properties.EFFECTOR_SOCKET_SETS[slot_index]
     for key, property_name in slot_properties.items():
-        if key == "object":
+        if key in {"object", "shape"}:
             continue
-        setattr(settings, property_name, properties.GRID_INPUT_DEFAULTS[socket_set[key]])
+        default = (
+            properties.EFFECTOR_STRENGTH_PERCENT_DEFAULT
+            if key == "strength"
+            else properties.GRID_INPUT_DEFAULTS[socket_set[key]]
+        )
+        setattr(settings, property_name, default)
+
+
+def _clear_effector_slot(settings, slot_index: int) -> None:
+    slot_properties = EFFECTOR_SLOT_PROPERTIES[slot_index]
+    setattr(settings, slot_properties["object"], None)
+    setattr(settings, slot_properties["shape"], effectors.FIELD_SHAPE_SPHERE)
+    _reset_effector_slot(settings, slot_index)
+
+
+def _copy_effector_slot(settings, source_index: int, target_index: int) -> None:
+    source = EFFECTOR_SLOT_PROPERTIES[source_index]
+    target = EFFECTOR_SLOT_PROPERTIES[target_index]
+    keys = ("shape", "object") + tuple(
+        key for key in source if key not in {"shape", "object"}
+    )
+    for key in keys:
+        setattr(settings, target[key], getattr(settings, source[key]))
+
+
+def _nearest_used_effector_slot(settings, start_index: int) -> int:
+    for index in range(start_index, len(EFFECTOR_SLOT_PROPERTIES)):
+        if getattr(settings, EFFECTOR_SLOT_PROPERTIES[index]["object"]) is not None:
+            return index
+    for index in range(start_index - 1, -1, -1):
+        if getattr(settings, EFFECTOR_SLOT_PROPERTIES[index]["object"]) is not None:
+            return index
+    return 0
+
+
+def _is_effector_referenced(effector: bpy.types.Object) -> bool:
+    for obj in bpy.data.objects:
+        if modifier_inputs.get_cloner_modifier(obj) is None:
+            continue
+        settings = obj.clone_fields_cloner
+        if _effector_already_linked(settings, effector):
+            return True
+    return False
 
 
 def _swap_effector_slots(settings, first_index: int, second_index: int) -> None:

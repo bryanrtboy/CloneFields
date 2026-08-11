@@ -7,8 +7,7 @@ import math
 import bpy
 from mathutils import Vector
 
-from . import modifier_inputs, properties
-from .operators import EFFECTOR_SLOT_PROPERTIES
+from . import effectors, modifier_inputs
 
 
 _DRAW_HANDLE = None
@@ -62,11 +61,23 @@ def _draw_viewport_guides() -> None:
         elif settings.distribution_mode == "RADIAL":
             lines = _radial_guide_lines(cloner, settings)
             _draw_lines(batch_for_shader, shader, lines, (1.0, 0.85, 0.1, 0.9))
-        for slot in EFFECTOR_SLOT_PROPERTIES:
-            _draw_effector_guides(batch_for_shader, shader, settings, slot)
+        for index, slot in enumerate(effectors.EFFECTOR_SLOT_PROPERTIES):
+            _draw_effector_guides(
+                batch_for_shader,
+                shader,
+                settings,
+                slot,
+                selected=index == settings.selected_effector_slot,
+            )
     for settings in effector_guides:
-        for slot in EFFECTOR_SLOT_PROPERTIES:
-            _draw_effector_guides(batch_for_shader, shader, settings, slot)
+        for index, slot in enumerate(effectors.EFFECTOR_SLOT_PROPERTIES):
+            _draw_effector_guides(
+                batch_for_shader,
+                shader,
+                settings,
+                slot,
+                selected=index == settings.selected_effector_slot,
+            )
     gpu.state.line_width_set(1.0)
     gpu.state.blend_set("NONE")
 
@@ -82,9 +93,9 @@ def _draw_lines(batch_for_shader, shader, lines, color) -> None:
 
 def _grid_guide_lines(cloner: bpy.types.Object, settings) -> list[tuple[float, float, float]]:
     source_half = source_bounds_half_extents(cloner)
-    half_x = max(0.0, (settings.count_x - 1) * settings.spacing_x * 0.5) + source_half.x
-    half_y = max(0.0, (settings.count_y - 1) * settings.spacing_y * 0.5) + source_half.y
-    half_z = max(0.0, (settings.count_z - 1) * settings.spacing_z * 0.5) + source_half.z
+    half_x = _grid_axis_half_extent(settings.count_x, settings.spacing_x, settings) + source_half.x
+    half_y = _grid_axis_half_extent(settings.count_y, settings.spacing_y, settings) + source_half.y
+    half_z = _grid_axis_half_extent(settings.count_z, settings.spacing_z, settings) + source_half.z
     matrix = cloner.matrix_world
 
     corners = [
@@ -122,6 +133,12 @@ def _grid_guide_lines(cloner: bpy.types.Object, settings) -> list[tuple[float, f
     return lines
 
 
+def _grid_axis_half_extent(count: int, spacing: float, settings) -> float:
+    if settings.spacing_mode == "ENDPOINT":
+        return max(0.0, spacing * 0.5)
+    return max(0.0, (count - 1) * spacing * 0.5)
+
+
 def _radial_guide_lines(cloner: bpy.types.Object, settings) -> list[tuple[float, float, float]]:
     matrix = cloner.matrix_world
     source_half = source_bounds_half_extents(cloner)
@@ -144,7 +161,7 @@ def _effector_guides_for_selection(selected_objects) -> list:
     selected_effectors = {
         obj
         for obj in selected_objects
-        if obj.get(properties.PROP_EFFECTOR_TYPE) == "PLAIN"
+        if effectors.is_effector_object(obj)
     }
     if not selected_effectors:
         return []
@@ -156,24 +173,25 @@ def _effector_guides_for_selection(selected_objects) -> list:
         cloner_settings = cloner.clone_fields_cloner
         if any(
             getattr(cloner_settings, slot["object"]) in selected_effectors
-            for slot in EFFECTOR_SLOT_PROPERTIES
+            for slot in effectors.EFFECTOR_SLOT_PROPERTIES
         ):
             settings.append(cloner_settings)
     return settings
 
 
-def _draw_effector_guides(batch_for_shader, shader, settings, slot) -> None:
+def _draw_effector_guides(batch_for_shader, shader, settings, slot, *, selected: bool) -> None:
     effector = getattr(settings, slot["object"])
     if effector is None:
         return
 
-    scale = max(abs(effector.scale.x), abs(effector.scale.y), abs(effector.scale.z))
-    outer_radius = max(0.0, getattr(settings, slot["radius"]) * scale)
+    outer_radius = max(0.0, getattr(settings, slot["radius"]))
     inner_radius = outer_radius * min(1.0, max(0.0, getattr(settings, slot["falloff"]) / 100.0))
     outer = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), outer_radius)
     inner = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), inner_radius)
-    _draw_lines(batch_for_shader, shader, outer, (0.35, 0.75, 1.0, 0.8))
-    _draw_lines(batch_for_shader, shader, inner, (1.0, 0.55, 0.15, 0.8))
+    outer_color = (0.35, 0.75, 1.0, 0.95) if selected else (0.35, 0.75, 1.0, 0.35)
+    inner_color = (1.0, 0.55, 0.15, 0.9) if selected else (1.0, 0.55, 0.15, 0.3)
+    _draw_lines(batch_for_shader, shader, outer, outer_color)
+    _draw_lines(batch_for_shader, shader, inner, inner_color)
 
 
 def source_bounds_half_extents(cloner: bpy.types.Object) -> Vector:

@@ -14,15 +14,34 @@ def create_grid_node_group(nested_grid: dict | None = None) -> bpy.types.Geometr
     distribution modes should be implemented as separate builders rather than
     branching this graph into a general-purpose system too early.
     """
+    if nested_grid is None:
+        reusable = _reusable_grid_node_group()
+        if reusable is not None:
+            return reusable
 
     node_group = bpy.data.node_groups.new(
         properties.GRID_NODE_GROUP_NAME,
         "GeometryNodeTree",
     )
+    if nested_grid is None:
+        node_group[properties.PROP_NODE_GROUP_BUILD_VERSION] = (
+            properties.GRID_NODE_GROUP_BUILD_VERSION
+        )
     _create_interface(node_group)
     _create_nodes(node_group, nested_grid)
 
     return node_group
+
+
+def _reusable_grid_node_group() -> bpy.types.GeometryNodeTree | None:
+    for node_group in bpy.data.node_groups:
+        if (
+            node_group.bl_idname == "GeometryNodeTree"
+            and node_group.get(properties.PROP_NODE_GROUP_BUILD_VERSION)
+            == properties.GRID_NODE_GROUP_BUILD_VERSION
+        ):
+            return node_group
+    return None
 
 
 def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
@@ -44,7 +63,7 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         parent=linear_panel,
     )
     radial_panel = _new_panel(interface, "Radial", default_closed=True)
-    effector_panel = _new_panel(interface, "Plain Effector", default_closed=True)
+    effector_panel = _new_panel(interface, "Basic Effector", default_closed=True)
     effector_position_panel = _new_panel(
         interface,
         "Effector Position",
@@ -137,6 +156,7 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         properties.SOCKET_EFFECTOR_STRENGTH
     ]
     socket.min_value = 0.0
+    socket.max_value = 1.0
     socket = _new_socket(
         interface,
         properties.SOCKET_EFFECTOR_RADIUS,
@@ -252,6 +272,16 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     socket.default_value = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_DISTRIBUTION_MODE
     ]
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_SPACING_MODE,
+        "INPUT",
+        "NodeSocketInt",
+        parent=distribution_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_SPACING_MODE]
+    socket.min_value = 0
+    socket.max_value = 1
     socket.min_value = 0
     socket.max_value = 2
 
@@ -537,7 +567,7 @@ def _create_nodes(
 
 
 def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> None:
-    panel = _new_panel(interface, f"Plain Effector {slot_index}", default_closed=True)
+    panel = _new_panel(interface, f"Basic Effector {slot_index}", default_closed=True)
     position_panel = _new_panel(
         interface,
         f"Effector {slot_index} Position",
@@ -564,6 +594,7 @@ def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> 
     socket = _new_socket(interface, socket_set["strength"], "INPUT", "NodeSocketFloat", parent=panel)
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["strength"]]
     socket.min_value = 0.0
+    socket.max_value = 1.0
     socket = _new_socket(interface, socket_set["radius"], "INPUT", "NodeSocketFloat", parent=panel)
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["radius"]]
     socket.min_value = 0.0
@@ -645,16 +676,41 @@ def _build_grid_distribution(
     _set_or_link_value(links, group_input, counts[1], mesh_line_y, "Count")
     _set_or_link_value(links, group_input, counts[2], mesh_line_z, "Count")
 
-    _set_or_link_vector_component(links, group_input, spacings[0], combine_x, "X")
-    _set_or_link_vector_component(links, group_input, spacings[1], combine_y, "Y")
-    _set_or_link_vector_component(links, group_input, spacings[2], combine_z, "Z")
+    spacing_x_node, spacing_x_socket = _build_spacing_value(
+        nodes,
+        links,
+        group_input,
+        counts[0],
+        spacings[0],
+        (x - 520, y + 240),
+    )
+    spacing_y_node, spacing_y_socket = _build_spacing_value(
+        nodes,
+        links,
+        group_input,
+        counts[1],
+        spacings[1],
+        (x, y + 240),
+    )
+    spacing_z_node, spacing_z_socket = _build_spacing_value(
+        nodes,
+        links,
+        group_input,
+        counts[2],
+        spacings[2],
+        (x + 520, y + 240),
+    )
+
+    _link(links, spacing_x_node, spacing_x_socket, combine_x, "X")
+    _link(links, spacing_y_node, spacing_y_socket, combine_y, "Y")
+    _link(links, spacing_z_node, spacing_z_socket, combine_z, "Z")
     _set_centered_line_start(
         nodes,
         links,
         group_input,
         mesh_line_x,
         counts[0],
-        spacings[0],
+        (spacing_x_node, spacing_x_socket),
         "X",
         (x - 460, y - 90),
     )
@@ -664,7 +720,7 @@ def _build_grid_distribution(
         group_input,
         mesh_line_y,
         counts[1],
-        spacings[1],
+        (spacing_y_node, spacing_y_socket),
         "Y",
         (x + 60, y - 90),
     )
@@ -674,7 +730,7 @@ def _build_grid_distribution(
         group_input,
         mesh_line_z,
         counts[2],
-        spacings[2],
+        (spacing_z_node, spacing_z_socket),
         "Z",
         (x + 580, y - 90),
     )
@@ -711,11 +767,51 @@ def _build_grid_distribution(
         instance_source,
         source_count,
         counts,
-        spacings,
+        (
+            (spacing_x_node, spacing_x_socket),
+            (spacing_y_node, spacing_y_socket),
+            (spacing_z_node, spacing_z_socket),
+        ),
         (x + 1540, y - 300),
     )
 
     return instance_source, "Instances"
+
+
+def _build_spacing_value(
+    nodes,
+    links,
+    group_input,
+    count,
+    spacing,
+    origin: tuple[int, int],
+) -> tuple:
+    x, y = origin
+    if group_input is None:
+        value = _new_node(nodes, "ShaderNodeValue", (x, y))
+        value.outputs["Value"].default_value = spacing
+        return value, "Value"
+
+    count_minus_one = _new_math_node(nodes, (x, y), "SUBTRACT")
+    safe_denominator = _new_math_node(nodes, (x + 240, y), "MAXIMUM")
+    endpoint_step = _new_math_node(nodes, (x + 480, y), "DIVIDE")
+    is_endpoint = _new_math_node(nodes, (x + 240, y - 140), "COMPARE")
+    switch = _new_float_switch_node(nodes, (x + 720, y - 20))
+
+    count_minus_one.inputs[1].default_value = 1.0
+    safe_denominator.inputs[1].default_value = 1.0
+    is_endpoint.inputs[1].default_value = 1.0
+    is_endpoint.inputs[2].default_value = 0.001
+
+    _set_or_link_value(links, group_input, count, count_minus_one, "Value")
+    _link(links, count_minus_one, "Value", safe_denominator, "Value")
+    _set_or_link_value(links, group_input, spacing, endpoint_step, "Value")
+    links.new(safe_denominator.outputs["Value"], endpoint_step.inputs[1])
+    _link(links, group_input, properties.SOCKET_SPACING_MODE, is_endpoint, "Value")
+    _link(links, is_endpoint, "Value", switch, "Switch")
+    _set_or_link_value(links, group_input, spacing, switch, "False")
+    _link(links, endpoint_step, "Value", switch, "True")
+    return switch, "Output"
 
 
 def _build_linear_distribution(
@@ -735,6 +831,14 @@ def _build_linear_distribution(
     normalize = _new_vector_math_node(nodes, (x + 20, y + 60), "NORMALIZE")
     scale = _new_vector_math_node(nodes, (x + 260, y + 60), "SCALE")
     instance = _new_node(nodes, "GeometryNodeInstanceOnPoints", (x + 560, y - 90))
+    spacing_node, spacing_socket = _build_spacing_value(
+        nodes,
+        links,
+        group_input,
+        properties.SOCKET_LINEAR_COUNT,
+        properties.SOCKET_LINEAR_SPACING,
+        (x + 20, y + 240),
+    )
 
     _link(links, group_input, properties.SOCKET_LINEAR_COUNT, mesh_line, "Count")
     _link(links, group_input, properties.SOCKET_LINEAR_DIRECTION_X, direction, "X")
@@ -742,7 +846,7 @@ def _build_linear_distribution(
     _link(links, group_input, properties.SOCKET_LINEAR_DIRECTION_Z, direction, "Z")
     _link(links, direction, "Vector", normalize, "Vector")
     _link(links, normalize, "Vector", scale, "Vector")
-    _link(links, group_input, properties.SOCKET_LINEAR_SPACING, scale, "Scale")
+    _link(links, spacing_node, spacing_socket, scale, "Scale")
     _link(links, scale, "Vector", mesh_line, "Offset")
     points_node, points_socket, rotation_node, rotation_socket, scale_node, scale_socket = (
         _build_all_plain_effector_points(
@@ -1008,10 +1112,6 @@ def _build_plain_effector_points(
     object_info.transform_space = "RELATIVE"
     position = _new_node(nodes, "GeometryNodeInputPosition", (x, y - 170))
     distance = _new_vector_math_node(nodes, (x + 260, y - 80), "DISTANCE")
-    separate_scale = _new_node(nodes, "ShaderNodeSeparateXYZ", (x + 260, y - 260))
-    max_xy = _new_math_node(nodes, (x + 500, y - 240), "MAXIMUM")
-    max_xyz = _new_math_node(nodes, (x + 740, y - 240), "MAXIMUM")
-    radius = _new_math_node(nodes, (x + 980, y - 240), "MULTIPLY")
     radius_minus_distance = _new_math_node(nodes, (x + 500, y - 80), "SUBTRACT")
     falloff_percent = _new_math_node(nodes, (x + 500, y - 360), "MULTIPLY")
     falloff_range_factor = _new_math_node(nodes, (x + 740, y - 360), "SUBTRACT")
@@ -1051,21 +1151,14 @@ def _build_plain_effector_points(
     _link(links, group_input, socket_set["object"], object_info, "Object")
     _link(links, position, "Position", distance, "Vector")
     links.new(object_info.outputs["Location"], distance.inputs[1])
-    _link(links, object_info, "Scale", separate_scale, "Vector")
-    _link(links, separate_scale, "X", max_xy, "Value")
-    links.new(separate_scale.outputs["Y"], max_xy.inputs[1])
-    _link(links, max_xy, "Value", max_xyz, "Value")
-    links.new(separate_scale.outputs["Z"], max_xyz.inputs[1])
-    _link(links, max_xyz, "Value", radius, "Value")
-    links.new(_socket(group_input.outputs, socket_set["radius"]), radius.inputs[1])
     links.new(
         _socket(group_input.outputs, socket_set["falloff"]),
         falloff_percent.inputs["Value"],
     )
     links.new(falloff_percent.outputs["Value"], falloff_range_factor.inputs[1])
-    _link(links, radius, "Value", scaled_falloff, "Value")
+    links.new(_socket(group_input.outputs, socket_set["radius"]), scaled_falloff.inputs["Value"])
     links.new(falloff_range_factor.outputs["Value"], scaled_falloff.inputs[1])
-    _link(links, radius, "Value", radius_minus_distance, "Value")
+    links.new(_socket(group_input.outputs, socket_set["radius"]), radius_minus_distance.inputs["Value"])
     links.new(distance.outputs["Value"], radius_minus_distance.inputs[1])
     _link(links, scaled_falloff, "Value", safe_falloff, "Value")
     _link(links, radius_minus_distance, "Value", falloff_weight, "Value")
@@ -1451,6 +1544,9 @@ def _set_or_link_value(
     to_node,
     to_socket_name: str,
 ) -> None:
+    if isinstance(value_or_socket_name, tuple):
+        _link(links, value_or_socket_name[0], value_or_socket_name[1], to_node, to_socket_name)
+        return
     if group_input is None:
         to_node.inputs[to_socket_name].default_value = value_or_socket_name
         return
@@ -1465,6 +1561,9 @@ def _set_or_link_vector_component(
     to_node,
     to_socket_name: str,
 ) -> None:
+    if isinstance(value_or_socket_name, tuple):
+        _link(links, value_or_socket_name[0], value_or_socket_name[1], to_node, to_socket_name)
+        return
     if group_input is None:
         to_node.inputs[to_socket_name].default_value = value_or_socket_name
         return

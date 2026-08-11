@@ -187,7 +187,7 @@ def main() -> None:
             "Linear",
             "Direction",
             "Radial",
-            "Plain Effector",
+            "Basic Effector",
             "Effector Position",
             "Effector Rotation",
             "Effector Scale",
@@ -209,6 +209,10 @@ def main() -> None:
         mode_id = inputs.get_modifier_input_identifier(
             modifier,
             props.SOCKET_DISTRIBUTION_MODE,
+        )
+        spacing_mode_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_SPACING_MODE,
         )
         count_x_id = inputs.get_modifier_input_identifier(modifier, props.SOCKET_COUNT_X)
         spacing_z_id = inputs.get_modifier_input_identifier(modifier, props.SOCKET_SPACING_Z)
@@ -263,6 +267,7 @@ def main() -> None:
         )
 
         assert mode_id is not None
+        assert spacing_mode_id is not None
         assert count_x_id is not None
         assert spacing_z_id is not None
         assert source_id is not None
@@ -280,12 +285,30 @@ def main() -> None:
         assert position_y_id is not None
 
         assert modifier[mode_id] == 0
+        assert modifier[spacing_mode_id] == 0
         assert modifier[count_x_id] == 2
         assert modifier[spacing_z_id] == 2.5
         assert modifier[source_id] == source
         assert _evaluated_vertex_count(cloner) > 0
         assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 12
         assert max(abs(value) for value in _evaluated_bounds_center(cloner)) < 0.0001
+
+        cloner.clone_fields_cloner.count_x = 4
+        cloner.clone_fields_cloner.count_y = 1
+        cloner.clone_fields_cloner.count_z = 1
+        cloner.clone_fields_cloner.spacing_x = 6.0
+        cloner.clone_fields_cloner.spacing_mode = "PER_STEP"
+        bpy.context.view_layer.update()
+        per_step_bounds = _evaluated_bounds_size(cloner)
+        cloner.clone_fields_cloner.spacing_mode = "ENDPOINT"
+        bpy.context.view_layer.update()
+        endpoint_bounds = _evaluated_bounds_size(cloner)
+        assert modifier[spacing_mode_id] == 1
+        assert abs(cloner.clone_fields_cloner.spacing_x - 18.0) < 0.0001
+        assert max(abs(endpoint_bounds[i] - per_step_bounds[i]) for i in range(3)) < 0.0001
+        cloner.clone_fields_cloner.spacing_mode = "PER_STEP"
+        bpy.context.view_layer.update()
+        assert abs(cloner.clone_fields_cloner.spacing_x - 6.0) < 0.0001
 
         cloner.clone_fields_cloner.distribution_mode = "LINEAR"
         cloner.update_tag()
@@ -304,6 +327,26 @@ def main() -> None:
         assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 4
         linear_bounds = _evaluated_bounds_size(cloner)
         assert linear_bounds[1] > linear_bounds[0]
+
+        cloner.clone_fields_cloner.linear_count = 4
+        cloner.clone_fields_cloner.linear_spacing = 1.25
+        cloner.clone_fields_cloner.spacing_mode = "ENDPOINT"
+        bpy.context.view_layer.update()
+        assert abs(cloner.clone_fields_cloner.linear_spacing - 3.75) < 0.0001
+        converted_linear_bounds = _evaluated_bounds_size(cloner)
+        assert max(abs(converted_linear_bounds[i] - linear_bounds[i]) for i in range(3)) < 0.0001
+        cloner.clone_fields_cloner.spacing_mode = "PER_STEP"
+        bpy.context.view_layer.update()
+        assert abs(cloner.clone_fields_cloner.linear_spacing - 1.25) < 0.0001
+
+        cloner.clone_fields_cloner.spacing_mode = "ENDPOINT"
+        modifier[linear_spacing_id] = 1.25
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        endpoint_linear_bounds = _evaluated_bounds_size(cloner)
+        assert endpoint_linear_bounds[1] < linear_bounds[1]
+        cloner.clone_fields_cloner.spacing_mode = "PER_STEP"
 
         modifier[radial_count_id] = 6
         modifier[radial_radius_id] = 3.0
@@ -405,14 +448,21 @@ def main() -> None:
         base_effector_center = _evaluated_bounds_center(effector_cloner)
         add_effector_result = bpy.ops.clone_fields.add_plain_effector("EXEC_DEFAULT")
         assert add_effector_result == {"FINISHED"}, add_effector_result
-        plain_effector = bpy.context.object
+        plain_effector = effector_cloner.clone_fields_cloner.effector_object
         assert plain_effector.type == "EMPTY"
         assert plain_effector.empty_display_type == "SPHERE"
         assert plain_effector.hide_render
-        assert plain_effector.get(props.PROP_EFFECTOR_TYPE) == "PLAIN"
+        assert plain_effector.name.startswith("Basic Effector [Spherical]")
+        assert plain_effector.get(props.PROP_EFFECTOR_TYPE) == "BASIC"
+        assert plain_effector.get(props.PROP_EFFECTOR_SHAPE) == "SPHERE"
+        assert plain_effector.lock_scale[:] == (True, True, True)
+        assert effector_cloner == bpy.context.view_layer.objects.active
+        assert effector_cloner.select_get()
+        assert not plain_effector.select_get()
         assert effector_cloner.clone_fields_cloner.effector_object == plain_effector
         assert effector_cloner.clone_fields_cloner.effector_enabled
         assert effector_cloner.clone_fields_cloner.effector_falloff == 50
+        assert effector_cloner.clone_fields_cloner.effector_strength == 100
         assert effector_cloner.clone_fields_cloner.effector_use_position
         assert not effector_cloner.clone_fields_cloner.effector_use_rotation
         assert not effector_cloner.clone_fields_cloner.effector_use_scale
@@ -425,7 +475,43 @@ def main() -> None:
             effector_modifier,
             props.SOCKET_EFFECTOR_OBJECT,
         )
+        effector_strength_id = _modifier_input_id(
+            inputs,
+            effector_modifier,
+            props.SOCKET_EFFECTOR_STRENGTH,
+        )
         assert effector_modifier[effector_object_id] == plain_effector
+        assert abs(effector_modifier[effector_strength_id] - 1.0) < 0.0001
+        effector_cloner.clone_fields_cloner.effector_strength = 50
+        assert abs(effector_modifier[effector_strength_id] - 0.5) < 0.0001
+        effector_cloner.clone_fields_cloner.effector_strength = 100
+
+        bpy.ops.mesh.primitive_cube_add(location=(14.0, 0.0, 0.0))
+        shared_source = bpy.context.object
+        shared_source.name = "Shared Effector Source"
+        shared_result = bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=shared_source.name,
+            count_x=2,
+            count_y=1,
+            count_z=1,
+        )
+        assert shared_result == {"FINISHED"}, shared_result
+        shared_cloner = bpy.context.object
+        link_result = bpy.ops.clone_fields.link_existing_effector(
+            "EXEC_DEFAULT",
+            effector_object_name=plain_effector.name,
+        )
+        assert link_result == {"FINISHED"}, link_result
+        assert shared_cloner.clone_fields_cloner.effector_object == plain_effector
+        unlink_shared_result = bpy.ops.clone_fields.delete_effector("EXEC_DEFAULT", slot_index=0)
+        assert unlink_shared_result == {"FINISHED"}, unlink_shared_result
+        assert plain_effector.name in bpy.data.objects
+        assert effector_cloner.clone_fields_cloner.effector_object == plain_effector
+        bpy.ops.object.select_all(action="DESELECT")
+        effector_cloner.select_set(True)
+        bpy.context.view_layer.objects.active = effector_cloner
+
         effector_cloner.clone_fields_cloner.effector_radius = 1.0
         effector_cloner.clone_fields_cloner.effector_use_position = False
         effector_cloner.clone_fields_cloner.effector_use_scale = True
@@ -470,9 +556,37 @@ def main() -> None:
         bpy.context.view_layer.objects.active = effector_cloner
         second_effector_result = bpy.ops.clone_fields.add_plain_effector("EXEC_DEFAULT")
         assert second_effector_result == {"FINISHED"}, second_effector_result
-        second_plain_effector = bpy.context.object
+        second_plain_effector = effector_cloner.clone_fields_cloner.effector2_object
         assert effector_cloner.clone_fields_cloner.effector2_object == second_plain_effector
         assert effector_cloner.clone_fields_cloner.effector_object == plain_effector
+        select_result = bpy.ops.clone_fields.select_plain_effector(
+            "EXEC_DEFAULT",
+            slot_index=1,
+        )
+        assert select_result == {"FINISHED"}, select_result
+        assert effector_cloner.clone_fields_cloner.selected_effector_slot == 1
+        assert effector_cloner == bpy.context.view_layer.objects.active
+        assert effector_cloner.select_get()
+        assert not second_plain_effector.select_get()
+        select_object_result = bpy.ops.clone_fields.select_effector_object(
+            "EXEC_DEFAULT",
+            slot_index=1,
+        )
+        assert select_object_result == {"FINISHED"}, select_object_result
+        assert second_plain_effector == bpy.context.view_layer.objects.active
+        assert second_plain_effector.select_get()
+        assert not effector_cloner.select_get()
+        bpy.ops.object.select_all(action="DESELECT")
+        effector_cloner.select_set(True)
+        bpy.context.view_layer.objects.active = effector_cloner
+        select_result = bpy.ops.clone_fields.select_plain_effector(
+            "EXEC_DEFAULT",
+            slot_index=1,
+        )
+        assert select_result == {"FINISHED"}, select_result
+        assert effector_cloner == bpy.context.view_layer.objects.active
+        assert effector_cloner.select_get()
+        assert not second_plain_effector.select_get()
         bpy.context.view_layer.objects.active = effector_cloner
         move_result = bpy.ops.clone_fields.move_plain_effector(
             "EXEC_DEFAULT",
@@ -483,6 +597,14 @@ def main() -> None:
         assert effector_cloner.clone_fields_cloner.effector_object == second_plain_effector
         assert effector_cloner.clone_fields_cloner.effector2_object == plain_effector
         assert effector_cloner.clone_fields_cloner.selected_effector_slot == 0
+        deleted_effector_name = second_plain_effector.name
+        delete_result = bpy.ops.clone_fields.delete_effector("EXEC_DEFAULT", slot_index=0)
+        assert delete_result == {"FINISHED"}, delete_result
+        assert deleted_effector_name not in bpy.data.objects
+        assert effector_cloner.clone_fields_cloner.effector_object == plain_effector
+        assert effector_cloner.clone_fields_cloner.effector2_object is None
+        assert effector_cloner.clone_fields_cloner.selected_effector_slot == 0
+        assert effector_cloner == bpy.context.view_layer.objects.active
 
         rotation_stack_mesh = bpy.data.meshes.new("Effector Rotation Stack Mesh")
         rotation_stack_mesh.from_pydata(

@@ -15,6 +15,11 @@ PROP_SOURCE_OWNER = "clone_fields_source_owner"
 PROP_SOURCE_COLLECTION = "clone_fields_source_collection"
 PROP_SOURCE_COLLECTION_OWNER_ID = "clone_fields_source_collection_owner_id"
 PROP_EFFECTOR_TYPE = "clone_fields_effector_type"
+PROP_EFFECTOR_SHAPE = "clone_fields_effector_shape"
+PROP_SPACING_MODE_PREVIOUS = "clone_fields_spacing_mode_previous"
+PROP_NODE_GROUP_BUILD_VERSION = "clone_fields_node_group_build_version"
+GRID_NODE_GROUP_BUILD_VERSION = 2
+EFFECTOR_STRENGTH_PERCENT_DEFAULT = 100
 
 SOCKET_GEOMETRY = "Geometry"
 SOCKET_SOURCE_OBJECT = "Source Object"
@@ -75,6 +80,7 @@ SOCKET_EFFECTOR_3_SCALE_X = "Effector 3 Scale X"
 SOCKET_EFFECTOR_3_SCALE_Y = "Effector 3 Scale Y"
 SOCKET_EFFECTOR_3_SCALE_Z = "Effector 3 Scale Z"
 SOCKET_DISTRIBUTION_MODE = "Mode (0 Grid, 1 Linear, 2 Radial)"
+SOCKET_SPACING_MODE = "Spacing Mode (0 Per Step, 1 Endpoint)"
 SOCKET_COUNT_X = "Count X"
 SOCKET_COUNT_Y = "Count Y"
 SOCKET_COUNT_Z = "Count Z"
@@ -155,6 +161,7 @@ GRID_INPUT_DEFAULTS = {
     SOCKET_EFFECTOR_3_SCALE_Y: 1.0,
     SOCKET_EFFECTOR_3_SCALE_Z: 1.0,
     SOCKET_DISTRIBUTION_MODE: 0,
+    SOCKET_SPACING_MODE: 0,
     SOCKET_COUNT_X: 3,
     SOCKET_COUNT_Y: 3,
     SOCKET_COUNT_Z: 1,

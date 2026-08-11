@@ -43,6 +43,10 @@ shown.
 Grid and Radial distributions are centered on the Cloner origin. Selected
 Cloners draw lightweight viewport guides for grid bounds or radial radius.
 Grid axis handles update spacing, and the Radial handle updates radius.
+Grid and Linear modes have a Spacing Mode. `Per Step` treats the value as the
+distance between neighboring clones, so changing Count grows or shrinks the
+field. `Endpoint` treats the value as the total distance from the first clone to
+the last clone, so changing Count redistributes clones inside the same span.
 
 360-degree arcs use the clone count as the angular step divisor, so a count of
 8 produces 8 evenly spaced clones without an overlapping endpoint. `Align`
@@ -52,12 +56,17 @@ To use multiple sources, parent additional source objects directly under the
 Cloner. Clone Fields alternates through the child sources by clone index. Empty
 objects can be used as blank/spacer sources.
 
-To add Plain Effectors, select a Cloner and use the `Add Plain Effector` button
-in the Clone Fields modifier panel. This creates visible sphere controller
-objects in the scene. Move, scale, or keyframe the controller objects, then use
-the stack controls to select, enable, reorder, and tune each effector. Only the
-selected effector's settings are shown. Falloff is a 0-100% slider where 100%
-gives a hard field edge and 0% blends across the full field radius. The Cloner's
+To add Basic Effectors, select a Cloner and use the `Add Basic Effector` button
+in the Clone Fields modifier panel. This creates visible spherical controller
+objects in the scene named like `Basic Effector [Spherical]`. Move or keyframe
+the controller objects directly, or use the Effector stack's scene-select icon
+to make one active for movement. The stack also lets you select an effector for
+editing, enable it, reorder it, or remove it. Use `Link Existing` to share one
+Effector object across multiple Cloners. Effector size is controlled by
+Radius/Falloff, so object scale is locked to keep the field predictable. Only the
+selected effector's settings are shown. Strength and Falloff are 0-100% sliders.
+Strength controls the amount of the effector transform, and Falloff is 100% for
+a hard field edge or 0% to blend across the full field radius. The Cloner's
 source Offset controls are hidden until enabled.
 
 ## Build the Zip

@@ -3,7 +3,7 @@
 import bpy
 from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, PointerProperty
 
-from . import modifier_inputs, properties, source_management
+from . import effectors, modifier_inputs, properties, source_management
 
 
 DISTRIBUTION_MODE_ITEMS = (
@@ -26,6 +26,15 @@ RADIAL_AXIS_VALUES = {
     "X": 1,
     "Y": 2,
 }
+SPACING_MODE_ITEMS = (
+    ("PER_STEP", "Per Step", "Distance between neighboring clones"),
+    ("ENDPOINT", "Endpoint", "Total distance from first clone to last clone"),
+)
+SPACING_MODE_VALUES = {
+    "PER_STEP": 0,
+    "ENDPOINT": 1,
+}
+_CONVERTING_SPACING_MODE = False
 
 
 def _sync_source(self, context) -> None:
@@ -53,7 +62,22 @@ def _sync_effector_object(self, context) -> None:
     _sync_modifier_value(self, properties.SOCKET_EFFECTOR_OBJECT, self.effector_object)
     self.effector_enabled = self.effector_object is not None
     if self.effector_object is not None:
-        self.effector_object.empty_display_size = self.effector_radius
+        effectors.configure_effector_object(
+            self.effector_object,
+            self.effector_shape,
+            self.effector_radius,
+        )
+        effectors.rename_effector_object(self.effector_object, self.effector_shape)
+
+
+def _sync_effector_shape(self, context) -> None:
+    if self.effector_object is not None:
+        effectors.configure_effector_object(
+            self.effector_object,
+            self.effector_shape,
+            self.effector_radius,
+        )
+        effectors.rename_effector_object(self.effector_object, self.effector_shape)
 
 
 def _sync_effector_enabled(self, context) -> None:
@@ -76,7 +100,7 @@ def _sync_effector_strength(self, context) -> None:
     _sync_modifier_value(
         self,
         properties.SOCKET_EFFECTOR_STRENGTH,
-        self.effector_strength,
+        self.effector_strength / 100.0,
     )
 
 
@@ -157,12 +181,39 @@ def _sync_effector_slot_value(
     property_name: str,
 ) -> None:
     value = getattr(self, property_name)
-    _sync_modifier_value(self, properties.EFFECTOR_SOCKET_SETS[slot_index][socket_key], value)
+    modifier_value = value / 100.0 if socket_key == "strength" else value
+    object_property = _effector_slot_property_name(slot_index, "object")
+    shape_property = _effector_slot_property_name(slot_index, "shape")
+    radius_property = _effector_slot_property_name(slot_index, "radius")
+
+    if socket_key == "shape":
+        effector = getattr(self, object_property)
+        if effector is not None:
+            effectors.configure_effector_object(
+                effector,
+                getattr(self, shape_property),
+                getattr(self, radius_property),
+            )
+            effectors.rename_effector_object(effector, getattr(self, shape_property))
+        return
+
+    _sync_modifier_value(
+        self,
+        properties.EFFECTOR_SOCKET_SETS[slot_index][socket_key],
+        modifier_value,
+    )
     if socket_key == "object":
-        enabled_property = f"effector{slot_index + 1}_enabled"
+        enabled_property = _effector_slot_property_name(slot_index, "enabled")
         setattr(self, enabled_property, value is not None)
+        if value is not None:
+            effectors.configure_effector_object(
+                value,
+                getattr(self, shape_property),
+                getattr(self, radius_property),
+            )
+            effectors.rename_effector_object(value, getattr(self, shape_property))
     if socket_key == "radius":
-        effector = getattr(self, f"effector{slot_index + 1}_object")
+        effector = getattr(self, object_property)
         if effector is not None:
             effector.empty_display_size = value
 
@@ -174,6 +225,28 @@ def _sync_distribution_mode(self, context) -> None:
         DISTRIBUTION_MODE_VALUES[self.distribution_mode],
     )
     self.id_data[properties.PROP_CLONER_MODE] = self.distribution_mode
+
+
+def _sync_spacing_mode(self, context) -> None:
+    global _CONVERTING_SPACING_MODE
+    if not _CONVERTING_SPACING_MODE:
+        _CONVERTING_SPACING_MODE = True
+        try:
+            previous_mode = self.id_data.get(
+                properties.PROP_SPACING_MODE_PREVIOUS,
+                self.spacing_mode,
+            )
+            if previous_mode != self.spacing_mode:
+                _convert_spacing_mode_values(self, previous_mode, self.spacing_mode)
+        finally:
+            _CONVERTING_SPACING_MODE = False
+
+    self.id_data[properties.PROP_SPACING_MODE_PREVIOUS] = self.spacing_mode
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_SPACING_MODE,
+        SPACING_MODE_VALUES[self.spacing_mode],
+    )
 
 
 def _sync_count_x(self, context) -> None:
@@ -206,6 +279,34 @@ def _sync_linear_count(self, context) -> None:
 
 def _sync_linear_spacing(self, context) -> None:
     _sync_modifier_value(self, properties.SOCKET_LINEAR_SPACING, self.linear_spacing)
+
+
+def _convert_spacing_mode_values(self, previous_mode: str, next_mode: str) -> None:
+    if previous_mode == next_mode:
+        return
+
+    if previous_mode == "PER_STEP" and next_mode == "ENDPOINT":
+        factor = "TO_ENDPOINT"
+    elif previous_mode == "ENDPOINT" and next_mode == "PER_STEP":
+        factor = "TO_PER_STEP"
+    else:
+        return
+
+    self.spacing_x = _convert_spacing_value(self.spacing_x, self.count_x, factor)
+    self.spacing_y = _convert_spacing_value(self.spacing_y, self.count_y, factor)
+    self.spacing_z = _convert_spacing_value(self.spacing_z, self.count_z, factor)
+    self.linear_spacing = _convert_spacing_value(
+        self.linear_spacing,
+        self.linear_count,
+        factor,
+    )
+
+
+def _convert_spacing_value(value: float, count: int, mode: str) -> float:
+    step_count = max(1, count - 1)
+    if mode == "TO_ENDPOINT":
+        return value * step_count
+    return value / step_count
 
 
 def _sync_linear_direction_x(self, context) -> None:
@@ -302,6 +403,10 @@ def _sync_modifier_value(self, socket_name: str, value) -> None:
         modifier_inputs.set_modifier_input(modifier, socket_name, value)
 
 
+def _effector_slot_property_name(slot_index: int, key: str) -> str:
+    return effectors.EFFECTOR_SLOT_PROPERTIES[slot_index][key]
+
+
 class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
     source_object: PointerProperty(
         name=properties.SOCKET_SOURCE_OBJECT,
@@ -309,9 +414,15 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         type=bpy.types.Object,
         update=_sync_source,
     )
+    effector_shape: EnumProperty(
+        name="Field",
+        items=effectors.FIELD_SHAPE_ITEMS,
+        default=effectors.FIELD_SHAPE_SPHERE,
+        update=_sync_effector_shape,
+    )
     effector_object: PointerProperty(
         name=properties.SOCKET_EFFECTOR_OBJECT,
-        description="Plain Effector controller object",
+        description="Basic Effector controller object",
         type=bpy.types.Object,
         update=_sync_effector_object,
     )
@@ -325,10 +436,12 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_INVERT],
         update=_sync_effector_invert,
     )
-    effector_strength: FloatProperty(
+    effector_strength: IntProperty(
         name="Strength",
-        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_STRENGTH],
+        default=properties.EFFECTOR_STRENGTH_PERCENT_DEFAULT,
         min=0,
+        max=100,
+        subtype="PERCENTAGE",
         update=_sync_effector_strength,
     )
     effector_radius: FloatProperty(
@@ -419,9 +532,15 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         min=0.0,
         update=_sync_effector_scale_z,
     )
+    effector2_shape: EnumProperty(
+        name="Field",
+        items=effectors.FIELD_SHAPE_ITEMS,
+        default=effectors.FIELD_SHAPE_SPHERE,
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "shape", "effector2_shape"),
+    )
     effector2_object: PointerProperty(
         name=properties.SOCKET_EFFECTOR_2_OBJECT,
-        description="Second Plain Effector controller object",
+        description="Second Basic Effector controller object",
         type=bpy.types.Object,
         update=lambda self, context: _sync_effector_slot_value(self, 1, "object", "effector2_object"),
     )
@@ -435,10 +554,12 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_INVERT],
         update=lambda self, context: _sync_effector_slot_value(self, 1, "invert", "effector2_invert"),
     )
-    effector2_strength: FloatProperty(
+    effector2_strength: IntProperty(
         name="Strength",
-        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_STRENGTH],
+        default=properties.EFFECTOR_STRENGTH_PERCENT_DEFAULT,
         min=0,
+        max=100,
+        subtype="PERCENTAGE",
         update=lambda self, context: _sync_effector_slot_value(self, 1, "strength", "effector2_strength"),
     )
     effector2_radius: FloatProperty(
@@ -529,9 +650,15 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         min=0.0,
         update=lambda self, context: _sync_effector_slot_value(self, 1, "scale_z", "effector2_scale_z"),
     )
+    effector3_shape: EnumProperty(
+        name="Field",
+        items=effectors.FIELD_SHAPE_ITEMS,
+        default=effectors.FIELD_SHAPE_SPHERE,
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "shape", "effector3_shape"),
+    )
     effector3_object: PointerProperty(
         name=properties.SOCKET_EFFECTOR_3_OBJECT,
-        description="Third Plain Effector controller object",
+        description="Third Basic Effector controller object",
         type=bpy.types.Object,
         update=lambda self, context: _sync_effector_slot_value(self, 2, "object", "effector3_object"),
     )
@@ -545,10 +672,12 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_INVERT],
         update=lambda self, context: _sync_effector_slot_value(self, 2, "invert", "effector3_invert"),
     )
-    effector3_strength: FloatProperty(
+    effector3_strength: IntProperty(
         name="Strength",
-        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_STRENGTH],
+        default=properties.EFFECTOR_STRENGTH_PERCENT_DEFAULT,
         min=0,
+        max=100,
+        subtype="PERCENTAGE",
         update=lambda self, context: _sync_effector_slot_value(self, 2, "strength", "effector3_strength"),
     )
     effector3_radius: FloatProperty(
@@ -644,6 +773,12 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         items=DISTRIBUTION_MODE_ITEMS,
         default="GRID",
         update=_sync_distribution_mode,
+    )
+    spacing_mode: EnumProperty(
+        name="Spacing Mode",
+        items=SPACING_MODE_ITEMS,
+        default="PER_STEP",
+        update=_sync_spacing_mode,
     )
     count_x: IntProperty(
         name=properties.SOCKET_COUNT_X,

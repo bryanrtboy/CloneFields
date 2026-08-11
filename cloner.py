@@ -92,9 +92,7 @@ def _set_object_settings(
     settings.effector_invert = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_EFFECTOR_INVERT
     ]
-    settings.effector_strength = properties.GRID_INPUT_DEFAULTS[
-        properties.SOCKET_EFFECTOR_STRENGTH
-    ]
+    settings.effector_strength = properties.EFFECTOR_STRENGTH_PERCENT_DEFAULT
     settings.effector_radius = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_EFFECTOR_RADIUS
     ]
@@ -137,7 +135,9 @@ def _set_object_settings(
     settings.effector_scale_z = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_EFFECTOR_SCALE_Z
     ]
+    cloner[properties.PROP_SPACING_MODE_PREVIOUS] = "PER_STEP"
     settings.distribution_mode = "GRID"
+    settings.spacing_mode = "PER_STEP"
     settings.count_x = count_x
     settings.count_y = count_y
     settings.count_z = count_z
@@ -232,6 +232,7 @@ def _set_default_effector_inputs(modifier: bpy.types.NodesModifier) -> None:
 def _set_default_distribution_inputs(modifier: bpy.types.NodesModifier) -> None:
     for socket_name in (
         properties.SOCKET_DISTRIBUTION_MODE,
+        properties.SOCKET_SPACING_MODE,
         properties.SOCKET_LINEAR_COUNT,
         properties.SOCKET_LINEAR_SPACING,
         properties.SOCKET_LINEAR_DIRECTION_X,
