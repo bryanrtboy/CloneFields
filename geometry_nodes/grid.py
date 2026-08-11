@@ -127,6 +127,16 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     )
     socket = _new_socket(
         interface,
+        properties.SOCKET_EFFECTOR_FIELD,
+        "INPUT",
+        "NodeSocketInt",
+        parent=effector_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_FIELD]
+    socket.min_value = 0
+    socket.max_value = 3
+    socket = _new_socket(
+        interface,
         properties.SOCKET_EFFECTOR_ENABLED,
         "INPUT",
         "NodeSocketBool",
@@ -165,6 +175,26 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         parent=effector_panel,
     )
     socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_RADIUS]
+    socket.min_value = 0.0
+    socket.subtype = "DISTANCE"
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_EFFECTOR_HEIGHT,
+        "INPUT",
+        "NodeSocketFloat",
+        parent=effector_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_HEIGHT]
+    socket.min_value = 0.0
+    socket.subtype = "DISTANCE"
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_EFFECTOR_LENGTH,
+        "INPUT",
+        "NodeSocketFloat",
+        parent=effector_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_LENGTH]
     socket.min_value = 0.0
     socket.subtype = "DISTANCE"
     socket = _new_socket(
@@ -587,6 +617,10 @@ def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> 
     )
 
     _new_socket(interface, socket_set["object"], "INPUT", "NodeSocketObject")
+    socket = _new_socket(interface, socket_set["field"], "INPUT", "NodeSocketInt", parent=panel)
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["field"]]
+    socket.min_value = 0
+    socket.max_value = 3
     socket = _new_socket(interface, socket_set["enabled"], "INPUT", "NodeSocketBool", parent=panel)
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["enabled"]]
     socket = _new_socket(interface, socket_set["invert"], "INPUT", "NodeSocketBool", parent=panel)
@@ -597,6 +631,14 @@ def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> 
     socket.max_value = 1.0
     socket = _new_socket(interface, socket_set["radius"], "INPUT", "NodeSocketFloat", parent=panel)
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["radius"]]
+    socket.min_value = 0.0
+    socket.subtype = "DISTANCE"
+    socket = _new_socket(interface, socket_set["height"], "INPUT", "NodeSocketFloat", parent=panel)
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["height"]]
+    socket.min_value = 0.0
+    socket.subtype = "DISTANCE"
+    socket = _new_socket(interface, socket_set["length"], "INPUT", "NodeSocketFloat", parent=panel)
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["length"]]
     socket.min_value = 0.0
     socket.subtype = "DISTANCE"
     socket = _new_socket(interface, socket_set["falloff"], "INPUT", "NodeSocketFloat", parent=panel)
@@ -1112,6 +1154,32 @@ def _build_plain_effector_points(
     object_info.transform_space = "RELATIVE"
     position = _new_node(nodes, "GeometryNodeInputPosition", (x, y - 170))
     distance = _new_vector_math_node(nodes, (x + 260, y - 80), "DISTANCE")
+    local_offset = _new_vector_math_node(nodes, (x + 260, y - 250), "SUBTRACT")
+    inverse_rotation = _new_node(nodes, "FunctionNodeInvertRotation", (x + 260, y - 420))
+    local_position = _new_node(nodes, "FunctionNodeRotateVector", (x + 500, y - 300))
+    absolute_local = _new_vector_math_node(nodes, (x + 740, y - 300), "ABSOLUTE")
+    separate_local = _new_node(nodes, "ShaderNodeSeparateXYZ", (x + 980, y - 300))
+    local_xy = _new_combine_xyz_node(nodes, (x + 1220, y - 620))
+    radial_distance = _new_vector_math_node(nodes, (x + 1460, y - 620), "LENGTH")
+    safe_radius = _new_math_node(nodes, (x + 1700, y - 620), "MAXIMUM")
+    normalized_radial = _new_math_node(nodes, (x + 1940, y - 620), "DIVIDE")
+    half_height = _new_math_node(nodes, (x + 1220, y - 760), "MULTIPLY")
+    safe_half_height = _new_math_node(nodes, (x + 1460, y - 760), "MAXIMUM")
+    normalized_height = _new_math_node(nodes, (x + 1700, y - 760), "DIVIDE")
+    cylinder_normalized = _new_math_node(nodes, (x + 2180, y - 680), "MAXIMUM")
+    cylinder_distance = _new_math_node(nodes, (x + 2420, y - 680), "MULTIPLY")
+    half_length = _new_math_node(nodes, (x + 1220, y - 920), "MULTIPLY")
+    safe_half_length = _new_math_node(nodes, (x + 1460, y - 920), "MAXIMUM")
+    linear_distance = _new_math_node(nodes, (x + 1700, y - 920), "MINIMUM")
+    max_xy = _new_math_node(nodes, (x + 1220, y - 300), "MAXIMUM")
+    cubic_distance = _new_math_node(nodes, (x + 1460, y - 300), "MAXIMUM")
+    is_cubic = _new_math_node(nodes, (x + 1220, y - 520), "COMPARE")
+    is_cylinder = _new_math_node(nodes, (x + 1460, y - 520), "COMPARE")
+    is_linear = _new_math_node(nodes, (x + 1700, y - 520), "COMPARE")
+    box_or_sphere_distance = _new_float_switch_node(nodes, (x + 1700, y - 220))
+    volume_distance = _new_float_switch_node(nodes, (x + 1940, y - 220))
+    field_distance = _new_float_switch_node(nodes, (x + 2180, y - 220))
+    field_size = _new_float_switch_node(nodes, (x + 2180, y - 360))
     radius_minus_distance = _new_math_node(nodes, (x + 500, y - 80), "SUBTRACT")
     falloff_percent = _new_math_node(nodes, (x + 500, y - 360), "MULTIPLY")
     falloff_range_factor = _new_math_node(nodes, (x + 740, y - 360), "SUBTRACT")
@@ -1142,6 +1210,17 @@ def _build_plain_effector_points(
     safe_falloff.inputs[1].default_value = 0.000001
     falloff_weight.use_clamp = True
     falloff_percent.inputs[1].default_value = 0.01
+    safe_radius.inputs[1].default_value = 0.000001
+    half_height.inputs[1].default_value = 0.5
+    safe_half_height.inputs[1].default_value = 0.000001
+    half_length.inputs[1].default_value = 0.5
+    safe_half_length.inputs[1].default_value = 0.000001
+    is_cubic.inputs[1].default_value = 1.0
+    is_cubic.inputs[2].default_value = 0.001
+    is_cylinder.inputs[1].default_value = 2.0
+    is_cylinder.inputs[2].default_value = 0.001
+    is_linear.inputs[1].default_value = 3.0
+    is_linear.inputs[2].default_value = 0.001
     inverted_weight.inputs[0].default_value = 1.0
     falloff_range_factor.inputs[0].default_value = 1.0
     one_scale.inputs["X"].default_value = 1.0
@@ -1151,15 +1230,59 @@ def _build_plain_effector_points(
     _link(links, group_input, socket_set["object"], object_info, "Object")
     _link(links, position, "Position", distance, "Vector")
     links.new(object_info.outputs["Location"], distance.inputs[1])
+    _link(links, position, "Position", local_offset, "Vector")
+    links.new(object_info.outputs["Location"], local_offset.inputs[1])
+    links.new(object_info.outputs["Rotation"], inverse_rotation.inputs["Rotation"])
+    _link(links, local_offset, "Vector", local_position, "Vector")
+    links.new(inverse_rotation.outputs["Rotation"], local_position.inputs["Rotation"])
+    _link(links, local_position, "Vector", absolute_local, "Vector")
+    _link(links, absolute_local, "Vector", separate_local, "Vector")
+    links.new(separate_local.outputs["X"], local_xy.inputs["X"])
+    links.new(separate_local.outputs["Y"], local_xy.inputs["Y"])
+    _link(links, local_xy, "Vector", radial_distance, "Vector")
+    links.new(_socket(group_input.outputs, socket_set["radius"]), safe_radius.inputs["Value"])
+    _link(links, radial_distance, "Value", normalized_radial, "Value")
+    links.new(safe_radius.outputs["Value"], normalized_radial.inputs[1])
+    links.new(_socket(group_input.outputs, socket_set["height"]), half_height.inputs["Value"])
+    _link(links, half_height, "Value", safe_half_height, "Value")
+    links.new(separate_local.outputs["Z"], normalized_height.inputs["Value"])
+    links.new(safe_half_height.outputs["Value"], normalized_height.inputs[1])
+    _link(links, normalized_radial, "Value", cylinder_normalized, "Value")
+    links.new(normalized_height.outputs["Value"], cylinder_normalized.inputs[1])
+    _link(links, cylinder_normalized, "Value", cylinder_distance, "Value")
+    links.new(_socket(group_input.outputs, socket_set["radius"]), cylinder_distance.inputs[1])
+    links.new(_socket(group_input.outputs, socket_set["length"]), half_length.inputs["Value"])
+    _link(links, half_length, "Value", safe_half_length, "Value")
+    links.new(separate_local.outputs["X"], linear_distance.inputs["Value"])
+    links.new(safe_half_length.outputs["Value"], linear_distance.inputs[1])
+    links.new(separate_local.outputs["X"], max_xy.inputs["Value"])
+    links.new(separate_local.outputs["Y"], max_xy.inputs[1])
+    _link(links, max_xy, "Value", cubic_distance, "Value")
+    links.new(separate_local.outputs["Z"], cubic_distance.inputs[1])
+    _link(links, group_input, socket_set["field"], is_cubic, "Value")
+    _link(links, group_input, socket_set["field"], is_cylinder, "Value")
+    _link(links, group_input, socket_set["field"], is_linear, "Value")
+    _link(links, is_cubic, "Value", box_or_sphere_distance, "Switch")
+    links.new(distance.outputs["Value"], box_or_sphere_distance.inputs["False"])
+    _link(links, cubic_distance, "Value", box_or_sphere_distance, "True")
+    _link(links, is_cylinder, "Value", volume_distance, "Switch")
+    _link(links, box_or_sphere_distance, "Output", volume_distance, "False")
+    _link(links, cylinder_distance, "Value", volume_distance, "True")
+    _link(links, is_linear, "Value", field_distance, "Switch")
+    _link(links, volume_distance, "Output", field_distance, "False")
+    _link(links, linear_distance, "Value", field_distance, "True")
+    _link(links, is_linear, "Value", field_size, "Switch")
+    links.new(_socket(group_input.outputs, socket_set["radius"]), field_size.inputs["False"])
+    links.new(safe_half_length.outputs["Value"], field_size.inputs["True"])
     links.new(
         _socket(group_input.outputs, socket_set["falloff"]),
         falloff_percent.inputs["Value"],
     )
     links.new(falloff_percent.outputs["Value"], falloff_range_factor.inputs[1])
-    links.new(_socket(group_input.outputs, socket_set["radius"]), scaled_falloff.inputs["Value"])
+    links.new(field_size.outputs["Output"], scaled_falloff.inputs["Value"])
     links.new(falloff_range_factor.outputs["Value"], scaled_falloff.inputs[1])
-    links.new(_socket(group_input.outputs, socket_set["radius"]), radius_minus_distance.inputs["Value"])
-    links.new(distance.outputs["Value"], radius_minus_distance.inputs[1])
+    links.new(field_size.outputs["Output"], radius_minus_distance.inputs["Value"])
+    links.new(field_distance.outputs["Output"], radius_minus_distance.inputs[1])
     _link(links, scaled_falloff, "Value", safe_falloff, "Value")
     _link(links, radius_minus_distance, "Value", falloff_weight, "Value")
     links.new(safe_falloff.outputs["Value"], falloff_weight.inputs[1])

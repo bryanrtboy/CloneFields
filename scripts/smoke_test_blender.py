@@ -136,6 +136,7 @@ def main() -> None:
     addon.register()
     inputs = importlib.import_module(f"{REPO_ROOT.name}.modifier_inputs")
     props = importlib.import_module(f"{REPO_ROOT.name}.properties")
+    eff = importlib.import_module(f"{REPO_ROOT.name}.effectors")
     sources = importlib.import_module(f"{REPO_ROOT.name}.source_management")
     guides = importlib.import_module(f"{REPO_ROOT.name}.viewport_guides")
     gizmos = importlib.import_module(f"{REPO_ROOT.name}.gizmos")
@@ -456,6 +457,14 @@ def main() -> None:
         assert plain_effector.get(props.PROP_EFFECTOR_TYPE) == "BASIC"
         assert plain_effector.get(props.PROP_EFFECTOR_SHAPE) == "SPHERE"
         assert plain_effector.lock_scale[:] == (True, True, True)
+        plain_effector.scale = (2.0, 0.5, 3.0)
+        plain_effector.update_tag()
+        eff.enforce_all_effector_transform_constraints()
+        assert tuple(round(value, 4) for value in plain_effector.scale[:]) == (
+            1.0,
+            1.0,
+            1.0,
+        )
         assert effector_cloner == bpy.context.view_layer.objects.active
         assert effector_cloner.select_get()
         assert not plain_effector.select_get()
@@ -481,6 +490,11 @@ def main() -> None:
             inputs,
             effector_modifier,
             props.SOCKET_EFFECTOR_RADIUS,
+        )
+        effector_field_id = _modifier_input_id(
+            inputs,
+            effector_modifier,
+            props.SOCKET_EFFECTOR_FIELD,
         )
         effector_strength_id = _modifier_input_id(
             inputs,
@@ -570,6 +584,100 @@ def main() -> None:
             predicate=lambda vertex: abs(vertex[0]) > 1.25,
         )
         assert inverted_outside_y > inverted_center_y
+        plain_effector_settings.invert = False
+
+        effector_cloner.clone_fields_cloner.count_x = 2
+        effector_cloner.clone_fields_cloner.count_y = 2
+        effector_cloner.clone_fields_cloner.count_z = 1
+        effector_cloner.clone_fields_cloner.spacing_x = 2.8
+        effector_cloner.clone_fields_cloner.spacing_y = 2.8
+        plain_effector_settings.radius = 1.5
+        plain_effector_settings.falloff = 100
+        plain_effector_settings.use_scale = True
+        plain_effector_settings.scale_y = 2.0
+        plain_effector_settings.shape = eff.FIELD_SHAPE_SPHERE
+        effector_cloner.update_tag()
+        effector_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        spherical_field_bounds = _evaluated_bounds_size(effector_cloner)
+
+        plain_effector_settings.shape = eff.FIELD_SHAPE_CUBE
+        effector_cloner.update_tag()
+        effector_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        cubic_field_bounds = _evaluated_bounds_size(effector_cloner)
+        assert plain_effector.name.startswith("Basic Effector [Cubic]")
+        assert plain_effector.empty_display_type == "CUBE"
+        assert plain_effector.get(props.PROP_EFFECTOR_SHAPE) == "CUBE"
+        assert effector_modifier[effector_field_id] == 1
+        assert cubic_field_bounds[1] > spherical_field_bounds[1] + 1.0
+        plain_effector_settings.shape = eff.FIELD_SHAPE_SPHERE
+
+        effector_cloner.clone_fields_cloner.count_x = 1
+        effector_cloner.clone_fields_cloner.count_y = 1
+        effector_cloner.clone_fields_cloner.count_z = 3
+        effector_cloner.clone_fields_cloner.spacing_z = 2.0
+        plain_effector_settings.radius = 0.75
+        plain_effector_settings.height = 5.0
+        effector_cloner.update_tag()
+        effector_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        small_sphere_vertices = _evaluated_vertices(effector_cloner)
+        small_sphere_outer_y = _max_abs_axis_for_vertices(
+            small_sphere_vertices,
+            axis=1,
+            predicate=lambda vertex: abs(vertex[2]) > 1.5,
+        )
+
+        plain_effector_settings.shape = eff.FIELD_SHAPE_CYLINDER
+        effector_cloner.update_tag()
+        effector_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        cylinder_vertices = _evaluated_vertices(effector_cloner)
+        cylinder_outer_y = _max_abs_axis_for_vertices(
+            cylinder_vertices,
+            axis=1,
+            predicate=lambda vertex: abs(vertex[2]) > 1.5,
+        )
+        assert plain_effector.name.startswith("Basic Effector [Cylindrical]")
+        assert plain_effector.empty_display_type == "CIRCLE"
+        assert plain_effector.get(props.PROP_EFFECTOR_SHAPE) == "CYLINDER"
+        assert effector_modifier[effector_field_id] == 2
+        assert cylinder_outer_y > small_sphere_outer_y + 0.2
+        plain_effector_settings.shape = eff.FIELD_SHAPE_SPHERE
+
+        effector_cloner.clone_fields_cloner.count_x = 3
+        effector_cloner.clone_fields_cloner.count_y = 1
+        effector_cloner.clone_fields_cloner.count_z = 1
+        effector_cloner.clone_fields_cloner.spacing_x = 2.0
+        plain_effector_settings.length = 5.0
+        plain_effector_settings.radius = 0.75
+        effector_cloner.update_tag()
+        effector_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        small_sphere_vertices = _evaluated_vertices(effector_cloner)
+        small_sphere_outer_y = _max_abs_axis_for_vertices(
+            small_sphere_vertices,
+            axis=1,
+            predicate=lambda vertex: abs(vertex[0]) > 1.5,
+        )
+
+        plain_effector_settings.shape = eff.FIELD_SHAPE_LINEAR
+        effector_cloner.update_tag()
+        effector_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        linear_vertices = _evaluated_vertices(effector_cloner)
+        linear_outer_y = _max_abs_axis_for_vertices(
+            linear_vertices,
+            axis=1,
+            predicate=lambda vertex: abs(vertex[0]) > 1.5,
+        )
+        assert plain_effector.name.startswith("Basic Effector [Linear]")
+        assert plain_effector.empty_display_type == "ARROWS"
+        assert plain_effector.get(props.PROP_EFFECTOR_SHAPE) == "LINEAR"
+        assert effector_modifier[effector_field_id] == 3
+        assert linear_outer_y > small_sphere_outer_y + 0.2
+        plain_effector_settings.shape = eff.FIELD_SHAPE_SPHERE
 
         bpy.ops.object.select_all(action="DESELECT")
         effector_cloner.select_set(True)

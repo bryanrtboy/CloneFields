@@ -456,6 +456,22 @@ class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
         unit="LENGTH",
         update=_sync_effector_radius_setting,
     )
+    height: FloatProperty(
+        name="Height",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_HEIGHT],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_effector_settings,
+    )
+    length: FloatProperty(
+        name="Length",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_LENGTH],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_effector_settings,
+    )
     falloff: IntProperty(
         name="Falloff",
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_FALLOFF],

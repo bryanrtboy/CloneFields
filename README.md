@@ -57,21 +57,27 @@ Cloner. Clone Fields alternates through the child sources by clone index. Empty
 objects can be used as blank/spacer sources.
 
 To add Basic Effectors, select a Cloner and use the `Add Basic Effector` button
-in the Clone Fields modifier panel. This creates visible spherical controller
-objects in the scene named like `Basic Effector [Spherical]`. Move or keyframe
-the controller objects directly, or use the Effector stack's scene-select icon
-to make one active for movement. The stack also lets you select an effector for
-editing, enable it, reorder it, or remove it. Use `Link Existing` to share one
-Effector object across multiple Cloners. Effector settings are stored on the
-Effector object, so editing Radius, Falloff, Strength, Field, or transform
-amounts from any linked Cloner updates that shared Effector everywhere. Each
-Cloner stack entry keeps its own `Cloner Influence` value for reducing that
-Effector's local impact. Effector size is controlled by Radius/Falloff, so object
-scale is locked to keep the field predictable. Only the selected effector's
-settings are shown. Global Strength, Cloner Influence, and Falloff are 0-100%
-sliders. Global Strength controls the amount of the effector transform, and
-Falloff is 100% for a hard field edge or 0% to blend across the full field
-radius. The Cloner's source Offset controls are hidden until enabled.
+in the Clone Fields modifier panel. This creates a visible controller object in
+the scene named like `Basic Effector [Spherical]`. The Field menu currently
+supports Spherical, Cubic, Cylindrical, and Linear fields; changing it renames
+the Effector and updates the viewport guide. Cylindrical fields add a Height
+control, and Linear fields use Length to separate two boundary planes along the
+Effector's local X axis. Move or keyframe the controller objects
+directly, or use the Effector stack's scene-select icon to make one active for
+movement. The stack also lets you select an effector for editing, enable it,
+reorder it, or remove it. Use `Link Existing` to share one Effector object across
+multiple Cloners. Effector settings are stored on the Effector object, so editing
+Radius, Height, Length, Falloff, Strength, Field, or transform amounts from any
+linked Cloner updates that shared Effector everywhere. Each Cloner stack entry
+keeps its own `Cloner Influence` value for reducing that Effector's local impact.
+Effector size is controlled by field dimensions and Falloff, so object scale is
+locked and reset to keep the field predictable. Cubic fields show this size
+control as `Size`.
+Only the selected effector's settings are shown. Global Strength, Cloner
+Influence, and Falloff are 0-100% sliders. Global Strength controls the amount
+of the effector transform, and Falloff is 100% for a hard field edge or 0% to
+blend across the full field radius. The Cloner's source Offset controls are
+hidden until enabled.
 
 ## Build the Zip
 

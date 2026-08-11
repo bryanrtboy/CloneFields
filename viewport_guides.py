@@ -195,8 +195,32 @@ def _draw_effector_guides(batch_for_shader, shader, settings, slot, *, selected:
         else getattr(settings, slot["falloff"])
     )
     inner_radius = outer_radius * min(1.0, max(0.0, falloff / 100.0))
-    outer = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), outer_radius)
-    inner = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), inner_radius)
+    if (
+        effector_settings is not None
+        and effector_settings.shape == effectors.FIELD_SHAPE_CUBE
+    ):
+        outer = _box_lines(effector.matrix_world, outer_radius)
+        inner = _box_lines(effector.matrix_world, inner_radius)
+    elif (
+        effector_settings is not None
+        and effector_settings.shape == effectors.FIELD_SHAPE_CYLINDER
+    ):
+        outer_height = max(0.0, effector_settings.height)
+        inner_height = outer_height * min(1.0, max(0.0, falloff / 100.0))
+        outer = _cylinder_lines(effector.matrix_world, outer_radius, outer_height)
+        inner = _cylinder_lines(effector.matrix_world, inner_radius, inner_height)
+    elif (
+        effector_settings is not None
+        and effector_settings.shape == effectors.FIELD_SHAPE_LINEAR
+    ):
+        outer_length = max(0.0, effector_settings.length)
+        inner_length = outer_length * min(1.0, max(0.0, falloff / 100.0))
+        guide_size = max(outer_radius * 2.0, outer_length * 0.5, 0.1)
+        outer = _linear_lines(effector.matrix_world, outer_length, guide_size)
+        inner = _linear_lines(effector.matrix_world, inner_length, guide_size * 0.85)
+    else:
+        outer = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), outer_radius)
+        inner = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), inner_radius)
     outer_color = (0.35, 0.75, 1.0, 0.95) if selected else (0.35, 0.75, 1.0, 0.35)
     inner_color = (1.0, 0.55, 0.15, 0.9) if selected else (1.0, 0.55, 0.15, 0.3)
     _draw_lines(batch_for_shader, shader, outer, outer_color)
@@ -240,6 +264,98 @@ def _sphere_lines(
     lines = []
     for axis in ("X", "Y", "Z"):
         lines.extend(_circle_lines(matrix, center, radius, axis))
+    return lines
+
+
+def _box_lines(matrix, half_extent: float) -> list[tuple[float, float, float]]:
+    if half_extent <= 0.0:
+        return []
+
+    corners = [
+        Vector((x, y, z))
+        for x in (-half_extent, half_extent)
+        for y in (-half_extent, half_extent)
+        for z in (-half_extent, half_extent)
+    ]
+    world = [matrix @ corner for corner in corners]
+    lines = []
+    for first, second in (
+        (0, 1),
+        (0, 2),
+        (0, 4),
+        (3, 1),
+        (3, 2),
+        (3, 7),
+        (5, 1),
+        (5, 4),
+        (5, 7),
+        (6, 2),
+        (6, 4),
+        (6, 7),
+    ):
+        lines.extend((tuple(world[first]), tuple(world[second])))
+    return lines
+
+
+def _cylinder_lines(
+    matrix,
+    radius: float,
+    height: float,
+    segments: int = 48,
+) -> list[tuple[float, float, float]]:
+    if radius <= 0.0 or height <= 0.0:
+        return []
+
+    half_height = height * 0.5
+    top_center = Vector((0.0, 0.0, half_height))
+    bottom_center = Vector((0.0, 0.0, -half_height))
+    lines = []
+    lines.extend(_circle_lines(matrix, top_center, radius, "Z", segments=segments))
+    lines.extend(_circle_lines(matrix, bottom_center, radius, "Z", segments=segments))
+
+    for index in range(segments):
+        if index % 6 != 0:
+            continue
+        angle = (math.tau * index) / segments
+        x = math.cos(angle) * radius
+        y = math.sin(angle) * radius
+        top = matrix @ Vector((x, y, half_height))
+        bottom = matrix @ Vector((x, y, -half_height))
+        lines.extend((tuple(top), tuple(bottom)))
+    return lines
+
+
+def _linear_lines(
+    matrix,
+    length: float,
+    plane_size: float,
+) -> list[tuple[float, float, float]]:
+    if length <= 0.0 or plane_size <= 0.0:
+        return []
+
+    half_length = length * 0.5
+    half_size = plane_size * 0.5
+    lines = []
+    positive_plane = [
+        Vector((half_length, y, z))
+        for y, z in (
+            (-half_size, -half_size),
+            (half_size, -half_size),
+            (half_size, half_size),
+            (-half_size, half_size),
+        )
+    ]
+    negative_plane = [Vector((-half_length, point.y, point.z)) for point in positive_plane]
+    for ring in (positive_plane, negative_plane):
+        world = [matrix @ point for point in ring]
+        for index, point in enumerate(world):
+            lines.extend((tuple(point), tuple(world[(index + 1) % len(world)])))
+        lines.extend((tuple(world[0]), tuple(world[2])))
+        lines.extend((tuple(world[1]), tuple(world[3])))
+
+    axis_positive = matrix @ Vector((half_length, 0.0, 0.0))
+    axis_negative = matrix @ Vector((-half_length, 0.0, 0.0))
+    lines.extend((tuple(axis_positive), tuple(axis_negative)))
     return lines
 
 

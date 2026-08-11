@@ -11,13 +11,28 @@ from . import properties
 EFFECTOR_TYPE_BASIC = "BASIC"
 LEGACY_EFFECTOR_TYPE_PLAIN = "PLAIN"
 FIELD_SHAPE_SPHERE = "SPHERE"
+FIELD_SHAPE_CUBE = "CUBE"
+FIELD_SHAPE_CYLINDER = "CYLINDER"
+FIELD_SHAPE_LINEAR = "LINEAR"
+FIELD_SHAPE_VALUES = {
+    FIELD_SHAPE_SPHERE: 0,
+    FIELD_SHAPE_CUBE: 1,
+    FIELD_SHAPE_CYLINDER: 2,
+    FIELD_SHAPE_LINEAR: 3,
+}
 
 FIELD_SHAPE_ITEMS = (
     (FIELD_SHAPE_SPHERE, "Spherical", "Spherical field"),
+    (FIELD_SHAPE_CUBE, "Cubic", "Cubic field"),
+    (FIELD_SHAPE_CYLINDER, "Cylindrical", "Cylindrical field"),
+    (FIELD_SHAPE_LINEAR, "Linear", "Linear field"),
 )
 
 FIELD_SHAPE_LABELS = {
     FIELD_SHAPE_SPHERE: "Spherical",
+    FIELD_SHAPE_CUBE: "Cubic",
+    FIELD_SHAPE_CYLINDER: "Cylindrical",
+    FIELD_SHAPE_LINEAR: "Linear",
 }
 
 EFFECTOR_SLOT_PROPERTIES = (
@@ -90,6 +105,8 @@ EFFECTOR_GLOBAL_KEYS = (
     "shape",
     "invert",
     "radius",
+    "height",
+    "length",
     "falloff",
     "use_position",
     "position_x",
@@ -104,6 +121,8 @@ EFFECTOR_GLOBAL_KEYS = (
     "scale_y",
     "scale_z",
 )
+
+_CONSTRAINT_TIMER_REGISTERED = False
 
 
 def field_shape_label(shape: str) -> str:
@@ -124,7 +143,14 @@ def is_effector_object(obj: bpy.types.Object | None) -> bool:
 
 
 def configure_effector_object(obj: bpy.types.Object, shape: str, radius: float) -> None:
-    obj.empty_display_type = "SPHERE"
+    if shape == FIELD_SHAPE_CUBE:
+        obj.empty_display_type = "CUBE"
+    elif shape == FIELD_SHAPE_CYLINDER:
+        obj.empty_display_type = "CIRCLE"
+    elif shape == FIELD_SHAPE_LINEAR:
+        obj.empty_display_type = "ARROWS"
+    else:
+        obj.empty_display_type = "SPHERE"
     obj.empty_display_size = radius
     obj.show_name = True
     obj.hide_render = True
@@ -132,6 +158,27 @@ def configure_effector_object(obj: bpy.types.Object, shape: str, radius: float) 
     obj.lock_scale = (True, True, True)
     obj[properties.PROP_EFFECTOR_TYPE] = EFFECTOR_TYPE_BASIC
     obj[properties.PROP_EFFECTOR_SHAPE] = shape
+
+
+def enforce_effector_transform_constraints(obj: bpy.types.Object) -> bool:
+    changed = False
+    if obj.lock_scale[:] != (True, True, True):
+        obj.lock_scale = (True, True, True)
+        changed = True
+    if any(abs(value - 1.0) > 0.0001 for value in obj.scale):
+        obj.scale = (1.0, 1.0, 1.0)
+        changed = True
+    return changed
+
+
+def enforce_all_effector_transform_constraints() -> None:
+    for obj in bpy.data.objects:
+        if is_effector_object(obj) and enforce_effector_transform_constraints(obj):
+            tag_referencing_cloners(obj)
+
+
+def field_shape_value(shape: str) -> int:
+    return FIELD_SHAPE_VALUES.get(shape, FIELD_SHAPE_VALUES[FIELD_SHAPE_SPHERE])
 
 
 def rename_effector_object(obj: bpy.types.Object | None, shape: str) -> None:
@@ -172,6 +219,11 @@ def sync_effector_slot(settings, modifier, slot_index: int) -> None:
     rename_effector_object(effector, effector_settings.shape)
 
     modifier_inputs.set_modifier_input(modifier, sockets["object"], effector)
+    modifier_inputs.set_modifier_input(
+        modifier,
+        sockets["field"],
+        field_shape_value(effector_settings.shape),
+    )
     for key in EFFECTOR_GLOBAL_KEYS:
         if key == "shape":
             continue
@@ -212,14 +264,28 @@ def _depsgraph_update_post(scene, depsgraph) -> None:
     for update in depsgraph.updates:
         datablock = update.id
         if isinstance(datablock, bpy.types.Object) and is_effector_object(datablock):
+            enforce_effector_transform_constraints(datablock)
             tag_referencing_cloners(datablock)
 
 
+def _effector_constraint_timer() -> float | None:
+    if not _CONSTRAINT_TIMER_REGISTERED:
+        return None
+    enforce_all_effector_transform_constraints()
+    return 0.25
+
+
 def register() -> None:
+    global _CONSTRAINT_TIMER_REGISTERED
     if _depsgraph_update_post not in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.append(_depsgraph_update_post)
+    if not _CONSTRAINT_TIMER_REGISTERED:
+        _CONSTRAINT_TIMER_REGISTERED = True
+        bpy.app.timers.register(_effector_constraint_timer, first_interval=0.25, persistent=True)
 
 
 def unregister() -> None:
+    global _CONSTRAINT_TIMER_REGISTERED
+    _CONSTRAINT_TIMER_REGISTERED = False
     if _depsgraph_update_post in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(_depsgraph_update_post)

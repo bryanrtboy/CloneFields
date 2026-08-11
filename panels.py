@@ -155,7 +155,14 @@ def _draw_effector_slot(layout, settings, slot: dict) -> None:
     box.prop(effector_settings, "shape", text="Field")
     box.prop(effector_settings, "invert")
     box.prop(effector_settings, "strength")
-    box.prop(effector_settings, "radius")
+    if effector_settings.shape == effectors.FIELD_SHAPE_LINEAR:
+        box.prop(effector_settings, "length")
+    elif effector_settings.shape == effectors.FIELD_SHAPE_CUBE:
+        box.prop(effector_settings, "radius", text="Size")
+    else:
+        box.prop(effector_settings, "radius")
+    if effector_settings.shape == effectors.FIELD_SHAPE_CYLINDER:
+        box.prop(effector_settings, "height")
     box.prop(effector_settings, "falloff")
 
     box.prop(effector_settings, "use_position")
