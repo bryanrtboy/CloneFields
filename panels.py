@@ -2,7 +2,7 @@
 
 import bpy
 
-from . import effectors, modifier_inputs
+from . import effectors, modifier_inputs, object_settings
 
 
 class CLONE_FIELDS_PT_cloner_modifier(bpy.types.Panel):
@@ -71,19 +71,38 @@ def _draw_radial(layout, settings) -> None:
 
 def _draw_object(layout, settings) -> None:
     layout.prop(settings, "object_distribution_object")
-    layout.prop(settings, "object_distribution_mode")
-    if settings.object_distribution_mode == "SPLINE":
-        layout.prop(settings, "object_spline_count", text="Count")
+    is_curve_object = object_settings.is_curve_distribution_object(
+        settings.object_distribution_object
+    )
+    if is_curve_object:
+        row = layout.row()
+        row.label(text="Placement")
+        row.label(text="Spline Points")
+    else:
+        layout.prop(settings, "object_distribution_mode")
+    if is_curve_object or settings.object_distribution_mode == "SPLINE":
+        layout.prop(settings, "object_spline_distribution", text="Distribution")
+        if settings.object_spline_distribution in {"COUNT", "EVEN"}:
+            layout.prop(settings, "object_spline_count", text="Count")
+        elif settings.object_spline_distribution == "STEP":
+            layout.prop(settings, "object_spline_step", text="Step")
+        if settings.object_spline_distribution != "EVALUATED":
+            layout.prop(settings, "object_spline_per_spline")
+        layout.prop(settings, "object_spline_smooth_rotation")
         row = layout.row(align=True)
+        row.use_property_split = False
         row.label(text="Alignment")
         row.prop_enum(settings, "object_alignment", "NONE", text="None")
         row.prop_enum(settings, "object_alignment", "TANGENT", text="Tangent")
     else:
         row = layout.row(align=True)
+        row.use_property_split = False
         row.label(text="Alignment")
         row.prop_enum(settings, "object_alignment", "NONE", text="None")
         row.prop_enum(settings, "object_alignment", "NORMALS", text="Normals")
         row.prop_enum(settings, "object_alignment", "CENTER", text="Center")
+        if settings.object_alignment in {"NORMALS", "CENTER"}:
+            layout.prop(settings, "object_up_vector")
 
 
 def _draw_effectors(layout, settings) -> None:

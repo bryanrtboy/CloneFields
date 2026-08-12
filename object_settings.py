@@ -40,6 +40,30 @@ OBJECT_ALIGNMENT_VALUES = {
     "CENTER": 2,
     "TANGENT": 3,
 }
+OBJECT_UP_VECTOR_ITEMS = (
+    ("AUTOMATIC", "None", "Prevent banking using an automatically selected reference axis"),
+    ("X", "+X", "Use the Cloner's local X axis as the up reference"),
+    ("Y", "+Y", "Use the Cloner's local Y axis as the up reference"),
+    ("Z", "+Z", "Use the Cloner's local Z axis as the up reference"),
+)
+OBJECT_UP_VECTOR_VALUES = {
+    "AUTOMATIC": 0,
+    "X": 1,
+    "Y": 2,
+    "Z": 3,
+}
+SPLINE_DISTRIBUTION_ITEMS = (
+    ("EVALUATED", "Points", "Place clones at the curve's evaluated points"),
+    ("COUNT", "Count", "Place this many clones on every spline"),
+    ("STEP", "Step", "Place clones at a fixed distance along every spline"),
+    ("EVEN", "Even", "Distribute a total clone count evenly by curve length"),
+)
+SPLINE_DISTRIBUTION_VALUES = {
+    "EVALUATED": 0,
+    "COUNT": 1,
+    "STEP": 2,
+    "EVEN": 3,
+}
 RADIAL_AXIS_ITEMS = (
     ("Z", "Z", "Rotate around Z"),
     ("X", "X", "Rotate around X"),
@@ -59,6 +83,10 @@ SPACING_MODE_VALUES = {
     "ENDPOINT": 1,
 }
 _CONVERTING_SPACING_MODE = False
+
+
+def is_curve_distribution_object(obj: bpy.types.Object | None) -> bool:
+    return bool(obj and obj.type in {"CURVE", "CURVES", "FONT", "GREASEPENCIL"})
 
 
 def _sync_source(self, context) -> None:
@@ -405,6 +433,8 @@ def _sync_object_distribution_object(self, context) -> None:
         properties.SOCKET_OBJECT_DISTRIBUTION_OBJECT,
         distribution_object,
     )
+    if is_curve_distribution_object(distribution_object):
+        self.object_distribution_mode = "SPLINE"
 
 
 def _sync_object_distribution_mode(self, context) -> None:
@@ -428,11 +458,51 @@ def _sync_object_spline_count(self, context) -> None:
     )
 
 
+def _sync_object_spline_distribution(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SPLINE_DISTRIBUTION,
+        SPLINE_DISTRIBUTION_VALUES[self.object_spline_distribution],
+    )
+
+
+def _sync_object_spline_step(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SPLINE_STEP,
+        self.object_spline_step,
+    )
+
+
+def _sync_object_spline_per_spline(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SPLINE_PER_SPLINE,
+        self.object_spline_per_spline,
+    )
+
+
+def _sync_object_spline_smooth_rotation(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION,
+        self.object_spline_smooth_rotation,
+    )
+
+
 def _sync_object_alignment(self, context) -> None:
     _sync_modifier_value(
         self,
         properties.SOCKET_OBJECT_ALIGNMENT,
         OBJECT_ALIGNMENT_VALUES[self.object_alignment],
+    )
+
+
+def _sync_object_up_vector(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_UP_VECTOR,
+        OBJECT_UP_VECTOR_VALUES[self.object_up_vector],
     )
 
 
@@ -1174,11 +1244,47 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         min=1,
         update=_sync_object_spline_count,
     )
+    object_spline_distribution: EnumProperty(
+        name="Distribution",
+        items=SPLINE_DISTRIBUTION_ITEMS,
+        default="EVEN",
+        update=_sync_object_spline_distribution,
+    )
+    object_spline_step: FloatProperty(
+        name="Step",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_SPLINE_STEP],
+        min=0.001,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_object_spline_step,
+    )
+    object_spline_per_spline: BoolProperty(
+        name="Per Spline",
+        description="Apply Count, Step, or Even separately to each spline or contour",
+        default=properties.GRID_INPUT_DEFAULTS[
+            properties.SOCKET_OBJECT_SPLINE_PER_SPLINE
+        ],
+        update=_sync_object_spline_per_spline,
+    )
+    object_spline_smooth_rotation: BoolProperty(
+        name="Smooth Rotation",
+        description="Use the curve normal to stabilize rotation around the tangent",
+        default=properties.GRID_INPUT_DEFAULTS[
+            properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION
+        ],
+        update=_sync_object_spline_smooth_rotation,
+    )
     object_alignment: EnumProperty(
         name="Alignment",
         items=OBJECT_ALIGNMENT_ITEMS,
         default="NORMALS",
         update=_sync_object_alignment,
+    )
+    object_up_vector: EnumProperty(
+        name="Up Vector",
+        items=OBJECT_UP_VECTOR_ITEMS,
+        default="AUTOMATIC",
+        update=_sync_object_up_vector,
     )
     source_position_x: FloatProperty(
         name=properties.SOCKET_SOURCE_POSITION_X,

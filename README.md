@@ -53,12 +53,21 @@ the last clone, so changing Count redistributes clones inside the same span.
 8 produces 8 evenly spaced clones without an overlapping endpoint. `Align`
 makes the source transform follow the radial step.
 
-Object distribution places clones on a chosen mesh or curve object. Mesh objects
-support Vertices and Polygon Centers. Curve/spline objects use Spline Points
-with a Count control. Align points mesh clone local Z toward the distribution
-object center, and spline clone local X along the spline tangent. The
-distribution object is not hidden automatically, so you can leave it visible for
-modeling context or hide it manually.
+Object distribution places clones on a chosen mesh, curve, text, or Grease
+Pencil object. Mesh objects support Vertices and Polygon Centers. Curve-like
+objects provide four distribution choices: Points uses the curve's evaluated
+points, Count samples a requested number on each spline, Step uses a fixed
+distance, and Even distributes a requested count by arc length. `Per Spline`
+restarts Count, Step, or Even on every contour or stroke; turn it off to treat a
+multi-contour object as one accumulated path. `Smooth Rotation` uses the curve
+normal to stabilize roll around the tangent. The distribution object is not
+hidden automatically, so you can leave it visible for modeling context or hide
+it manually.
+
+For mesh alignment, `Up Vector` controls banking around the aligned local Z
+axis. The default `None` automatically keeps clones visually upright while
+avoiding pole singularities. `+X`, `+Y`, and `+Z` use a fixed Cloner axis when
+a specific orientation is needed.
 
 To use multiple sources, parent additional source objects directly under the
 Cloner. Clone Fields alternates through the child sources by clone index. Empty

@@ -7,6 +7,7 @@ Run with:
 from __future__ import annotations
 
 import importlib
+import math
 import sys
 from pathlib import Path
 
@@ -285,6 +286,10 @@ def main() -> None:
             modifier,
             props.SOCKET_OBJECT_DISTRIBUTION_MODE,
         )
+        object_spline_distribution_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_SPLINE_DISTRIBUTION,
+        )
         object_spline_count_id = inputs.get_modifier_input_identifier(
             modifier,
             props.SOCKET_OBJECT_SPLINE_COUNT,
@@ -292,6 +297,10 @@ def main() -> None:
         object_alignment_id = inputs.get_modifier_input_identifier(
             modifier,
             props.SOCKET_OBJECT_ALIGNMENT,
+        )
+        object_up_vector_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_UP_VECTOR,
         )
         rotation_z_id = inputs.get_modifier_input_identifier(
             modifier,
@@ -322,8 +331,10 @@ def main() -> None:
         assert radial_axis_id is not None
         assert object_distribution_object_id is not None
         assert object_distribution_mode_id is not None
+        assert object_spline_distribution_id is not None
         assert object_spline_count_id is not None
         assert object_alignment_id is not None
+        assert object_up_vector_id is not None
         assert rotation_z_id is not None
         assert scale_x_id is not None
         assert position_y_id is not None
@@ -532,6 +543,14 @@ def main() -> None:
         normal_vertices = _evaluated_vertices(align_cloner)
         assert len(normal_vertices) == expected_vertex_count
         normal_radius = _max_xy_radius(normal_vertices)
+        for up_vector, expected_value in (("AUTOMATIC", 0), ("X", 1), ("Y", 2), ("Z", 3)):
+            align_cloner.clone_fields_cloner.object_up_vector = up_vector
+            align_cloner.update_tag()
+            align_modifier.node_group.update_tag()
+            bpy.context.view_layer.update()
+            assert align_modifier[object_up_vector_id] == expected_value
+            assert _evaluated_vertex_count(align_cloner) == expected_vertex_count
+        align_cloner.clone_fields_cloner.object_up_vector = "AUTOMATIC"
 
         align_cloner.clone_fields_cloner.object_alignment = "CENTER"
         align_cloner.update_tag()
@@ -570,6 +589,8 @@ def main() -> None:
         cloner.clone_fields_cloner.object_distribution_object = curve_object
         cloner.clone_fields_cloner.object_distribution_mode = "SPLINE"
         cloner.clone_fields_cloner.object_alignment = "TANGENT"
+        cloner.clone_fields_cloner.object_spline_distribution = "COUNT"
+        cloner.clone_fields_cloner.object_spline_per_spline = True
         cloner.clone_fields_cloner.object_spline_count = 5
         cloner.update_tag()
         modifier.node_group.update_tag()
@@ -577,6 +598,195 @@ def main() -> None:
         assert modifier[object_distribution_mode_id] == 2
         assert modifier[object_spline_count_id] == 5
         assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 5
+
+        bezier_data = bpy.data.curves.new("Bezier Distribution", "CURVE")
+        bezier_data.dimensions = "3D"
+        bezier_spline = bezier_data.splines.new("BEZIER")
+        bezier_spline.bezier_points.add(3)
+        for point, coordinate in zip(
+            bezier_spline.bezier_points,
+            ((-2.0, 0.0, 0.0), (-1.0, 1.0, 0.0), (1.0, 1.0, 0.0), (2.0, 0.0, 0.0)),
+        ):
+            point.co = coordinate
+            point.handle_left_type = "AUTO"
+            point.handle_right_type = "AUTO"
+        bezier_object = bpy.data.objects.new("Bezier Distribution", bezier_data)
+        bpy.context.collection.objects.link(bezier_object)
+        cloner.clone_fields_cloner.object_distribution_mode = "VERTICES"
+        cloner.clone_fields_cloner.object_alignment = "NORMALS"
+        cloner.clone_fields_cloner.object_distribution_object = bezier_object
+        cloner.clone_fields_cloner.object_spline_distribution = "COUNT"
+        cloner.clone_fields_cloner.object_spline_per_spline = True
+        cloner.clone_fields_cloner.object_spline_count = 7
+        bpy.context.view_layer.update()
+        assert cloner.clone_fields_cloner.object_distribution_mode == "SPLINE"
+        assert cloner.clone_fields_cloner.object_alignment == "TANGENT"
+        assert modifier[object_distribution_mode_id] == 2
+        assert modifier[object_alignment_id] == 3
+        bezier_clone_count = _evaluated_vertex_count(cloner)
+        assert bezier_clone_count == len(source.data.vertices) * 7, bezier_clone_count
+
+        nurbs_data = bpy.data.curves.new("NURBS Circle Distribution", "CURVE")
+        nurbs_data.dimensions = "3D"
+        nurbs_spline = nurbs_data.splines.new("NURBS")
+        nurbs_spline.points.add(7)
+        for index, point in enumerate(nurbs_spline.points):
+            angle = (index / 8.0) * 6.283185307179586
+            point.co = (2.0 * math.cos(angle), 2.0 * math.sin(angle), 0.0, 1.0)
+        nurbs_spline.use_cyclic_u = True
+        nurbs_spline.order_u = 3
+        nurbs_spline.use_endpoint_u = False
+        nurbs_object = bpy.data.objects.new("NURBS Circle Distribution", nurbs_data)
+        bpy.context.collection.objects.link(nurbs_object)
+        cloner.clone_fields_cloner.object_distribution_mode = "POLYGONS"
+        cloner.clone_fields_cloner.object_alignment = "CENTER"
+        cloner.clone_fields_cloner.object_distribution_object = nurbs_object
+        cloner.clone_fields_cloner.object_spline_distribution = "COUNT"
+        cloner.clone_fields_cloner.object_spline_per_spline = True
+        cloner.clone_fields_cloner.object_spline_count = 9
+        bpy.context.view_layer.update()
+        assert cloner.clone_fields_cloner.object_distribution_mode == "SPLINE"
+        assert cloner.clone_fields_cloner.object_alignment == "TANGENT"
+        assert modifier[object_distribution_mode_id] == 2
+        assert modifier[object_alignment_id] == 3
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 9
+
+        generated_curve_mesh = bpy.data.meshes.new("Generated Curve Host Mesh")
+        generated_curve_object = bpy.data.objects.new(
+            "Generated Curve Host",
+            generated_curve_mesh,
+        )
+        bpy.context.collection.objects.link(generated_curve_object)
+        generated_curve_group = bpy.data.node_groups.new(
+            "Generated Curve Geometry",
+            "GeometryNodeTree",
+        )
+        generated_curve_group.interface.new_socket(
+            name="Geometry",
+            in_out="OUTPUT",
+            socket_type="NodeSocketGeometry",
+        )
+        generated_curve_output = generated_curve_group.nodes.new("NodeGroupOutput")
+        generated_curve_circle = generated_curve_group.nodes.new(
+            "GeometryNodeCurvePrimitiveCircle"
+        )
+        generated_curve_circle.inputs["Resolution"].default_value = 12
+        generated_curve_circle.inputs["Radius"].default_value = 2.0
+        generated_curve_group.links.new(
+            generated_curve_circle.outputs["Curve"],
+            generated_curve_output.inputs["Geometry"],
+        )
+        generated_curve_modifier = generated_curve_object.modifiers.new(
+            name="Generated Curve",
+            type="NODES",
+        )
+        generated_curve_modifier.node_group = generated_curve_group
+        cloner.clone_fields_cloner.object_distribution_mode = "VERTICES"
+        cloner.clone_fields_cloner.object_alignment = "NORMALS"
+        cloner.clone_fields_cloner.object_distribution_object = generated_curve_object
+        cloner.clone_fields_cloner.object_spline_distribution = "COUNT"
+        cloner.clone_fields_cloner.object_spline_per_spline = True
+        cloner.clone_fields_cloner.object_spline_count = 11
+        bpy.context.view_layer.update()
+        assert generated_curve_object.type == "MESH"
+        assert cloner.clone_fields_cloner.object_distribution_mode == "VERTICES"
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 11
+
+        multi_curve_data = bpy.data.curves.new("Multi Spline Distribution", "CURVE")
+        multi_curve_data.dimensions = "3D"
+        for y_offset in (-1.0, 1.0):
+            multi_spline = multi_curve_data.splines.new("POLY")
+            multi_spline.points.add(1)
+            multi_spline.points[0].co = (-2.0, y_offset, 0.0, 1.0)
+            multi_spline.points[1].co = (2.0, y_offset, 0.0, 1.0)
+        multi_curve_object = bpy.data.objects.new(
+            "Multi Spline Distribution",
+            multi_curve_data,
+        )
+        bpy.context.collection.objects.link(multi_curve_object)
+        cloner.clone_fields_cloner.object_distribution_object = multi_curve_object
+        cloner.clone_fields_cloner.object_spline_count = 5
+        cloner.clone_fields_cloner.object_spline_distribution = "COUNT"
+        cloner.clone_fields_cloner.object_spline_per_spline = True
+        bpy.context.view_layer.update()
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 10
+        cloner.clone_fields_cloner.object_spline_per_spline = False
+        bpy.context.view_layer.update()
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 5
+
+        cloner.clone_fields_cloner.object_spline_distribution = "EVEN"
+        cloner.clone_fields_cloner.object_spline_per_spline = True
+        bpy.context.view_layer.update()
+        assert modifier[object_spline_distribution_id] == 3
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 10
+        cloner.clone_fields_cloner.object_spline_per_spline = False
+        bpy.context.view_layer.update()
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 5
+
+        cloner.clone_fields_cloner.object_spline_distribution = "STEP"
+        cloner.clone_fields_cloner.object_spline_step = 1.0
+        cloner.clone_fields_cloner.object_spline_per_spline = True
+        bpy.context.view_layer.update()
+        per_spline_step_count = _evaluated_vertex_count(cloner)
+        cloner.clone_fields_cloner.object_spline_per_spline = False
+        bpy.context.view_layer.update()
+        global_step_count = _evaluated_vertex_count(cloner)
+        assert per_spline_step_count == len(source.data.vertices) * 10
+        assert global_step_count == len(source.data.vertices) * 9
+
+        cloner.clone_fields_cloner.object_spline_distribution = "EVALUATED"
+        cloner.clone_fields_cloner.object_spline_per_spline = True
+        bpy.context.view_layer.update()
+        evaluated_per_spline_count = _evaluated_vertex_count(cloner)
+        cloner.clone_fields_cloner.object_spline_per_spline = False
+        bpy.context.view_layer.update()
+        assert _evaluated_vertex_count(cloner) == evaluated_per_spline_count
+
+        generated_grease_mesh = bpy.data.meshes.new("Generated Grease Pencil Host Mesh")
+        generated_grease_object = bpy.data.objects.new(
+            "Generated Grease Pencil Host",
+            generated_grease_mesh,
+        )
+        bpy.context.collection.objects.link(generated_grease_object)
+        generated_grease_group = bpy.data.node_groups.new(
+            "Generated Grease Pencil Geometry",
+            "GeometryNodeTree",
+        )
+        generated_grease_group.interface.new_socket(
+            name="Geometry",
+            in_out="OUTPUT",
+            socket_type="NodeSocketGeometry",
+        )
+        generated_grease_output = generated_grease_group.nodes.new("NodeGroupOutput")
+        generated_grease_circle = generated_grease_group.nodes.new(
+            "GeometryNodeCurvePrimitiveCircle"
+        )
+        generated_grease_circle.inputs["Resolution"].default_value = 12
+        generated_grease_circle.inputs["Radius"].default_value = 2.0
+        curves_to_grease = generated_grease_group.nodes.new(
+            "GeometryNodeCurvesToGreasePencil"
+        )
+        curves_to_grease.inputs["Instances as Layers"].default_value = False
+        generated_grease_group.links.new(
+            generated_grease_circle.outputs["Curve"],
+            curves_to_grease.inputs["Curves"],
+        )
+        generated_grease_group.links.new(
+            curves_to_grease.outputs["Grease Pencil"],
+            generated_grease_output.inputs["Geometry"],
+        )
+        generated_grease_modifier = generated_grease_object.modifiers.new(
+            name="Generated Grease Pencil",
+            type="NODES",
+        )
+        generated_grease_modifier.node_group = generated_grease_group
+        cloner.clone_fields_cloner.object_distribution_object = generated_grease_object
+        cloner.clone_fields_cloner.object_spline_distribution = "COUNT"
+        cloner.clone_fields_cloner.object_spline_count = 7
+        cloner.clone_fields_cloner.object_spline_per_spline = True
+        bpy.context.view_layer.update()
+        generated_grease_count = _evaluated_vertex_count(cloner)
+        assert generated_grease_count == len(source.data.vertices) * 7, generated_grease_count
 
         cloner.clone_fields_cloner.distribution_mode = "GRID"
         cloner.update_tag()

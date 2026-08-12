@@ -475,6 +475,18 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     socket.max_value = 2
     socket = _new_socket(
         interface,
+        properties.SOCKET_OBJECT_SPLINE_DISTRIBUTION,
+        "INPUT",
+        "NodeSocketInt",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SPLINE_DISTRIBUTION
+    ]
+    socket.min_value = 0
+    socket.max_value = 3
+    socket = _new_socket(
+        interface,
         properties.SOCKET_OBJECT_SPLINE_COUNT,
         "INPUT",
         "NodeSocketInt",
@@ -486,6 +498,38 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     socket.min_value = 1
     socket = _new_socket(
         interface,
+        properties.SOCKET_OBJECT_SPLINE_STEP,
+        "INPUT",
+        "NodeSocketFloat",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SPLINE_STEP
+    ]
+    socket.min_value = 0.001
+    socket.subtype = "DISTANCE"
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_SPLINE_PER_SPLINE,
+        "INPUT",
+        "NodeSocketBool",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SPLINE_PER_SPLINE
+    ]
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION,
+        "INPUT",
+        "NodeSocketBool",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION
+    ]
+    socket = _new_socket(
+        interface,
         properties.SOCKET_OBJECT_ALIGNMENT,
         "INPUT",
         "NodeSocketInt",
@@ -493,6 +537,18 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     )
     socket.default_value = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_OBJECT_ALIGNMENT
+    ]
+    socket.min_value = 0
+    socket.max_value = 3
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_UP_VECTOR,
+        "INPUT",
+        "NodeSocketInt",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_UP_VECTOR
     ]
     socket.min_value = 0
     socket.max_value = 3
@@ -1154,6 +1210,73 @@ def _link_radial_axis_components(
         links.new(second_component.outputs["Value"], position.inputs["Y"])
 
 
+def _build_global_curve_points(
+    nodes,
+    links,
+    group_input,
+    curve_node,
+    curve_socket: str,
+    origin: tuple[int, int],
+) -> tuple:
+    x, y = origin
+    curve_length = _new_node(nodes, "GeometryNodeCurveLength", (x, y))
+    divide_step = _new_math_node(nodes, (x + 200, y - 80), "DIVIDE")
+    floor_step = _new_math_node(nodes, (x + 400, y - 80), "FLOOR")
+    step_count = _new_math_node(nodes, (x + 600, y - 80), "ADD")
+    step_count.inputs[1].default_value = 1.0
+    is_step = _new_math_node(nodes, (x + 400, y - 240), "COMPARE")
+    is_step.inputs[1].default_value = 2.0
+    is_step.inputs[2].default_value = 0.1
+    count_switch = _new_int_switch_node(nodes, (x + 780, y))
+    points = _new_node(nodes, "GeometryNodePoints", (x + 980, y))
+    index = _new_node(nodes, "GeometryNodeInputIndex", (x + 980, y - 220))
+    count_minus_one = _new_math_node(nodes, (x + 980, y - 380), "SUBTRACT")
+    count_minus_one.inputs[1].default_value = 1.0
+    safe_denominator = _new_math_node(nodes, (x + 1180, y - 380), "MAXIMUM")
+    safe_denominator.inputs[1].default_value = 1.0
+    factor = _new_math_node(nodes, (x + 1180, y - 220), "DIVIDE")
+    even_length = _new_math_node(nodes, (x + 1380, y - 300), "MULTIPLY")
+    step_length = _new_math_node(nodes, (x + 1180, y - 520), "MULTIPLY")
+    sample_length = _new_float_switch_node(nodes, (x + 1580, y - 300))
+    sample = _new_node(nodes, "GeometryNodeSampleCurve", (x + 1380, y - 100))
+    sample.mode = "LENGTH"
+    sample.use_all_curves = True
+    set_position = _new_node(nodes, "GeometryNodeSetPosition", (x + 1620, y))
+
+    _link(links, curve_node, curve_socket, curve_length, "Curve")
+    _link(links, curve_length, "Length", divide_step, "Value")
+    links.new(
+        _socket(group_input.outputs, properties.SOCKET_OBJECT_SPLINE_STEP),
+        divide_step.inputs[1],
+    )
+    _link(links, divide_step, "Value", floor_step, "Value")
+    _link(links, floor_step, "Value", step_count, "Value")
+    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_DISTRIBUTION, is_step, "Value")
+    _link(links, is_step, "Value", count_switch, "Switch")
+    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_COUNT, count_switch, "False")
+    _link(links, step_count, "Value", count_switch, "True")
+    _link(links, count_switch, "Output", points, "Count")
+    _link(links, count_switch, "Output", count_minus_one, "Value")
+    _link(links, count_minus_one, "Value", safe_denominator, "Value")
+    _link(links, index, "Index", factor, "Value")
+    links.new(safe_denominator.outputs["Value"], factor.inputs[1])
+    _link(links, factor, "Value", even_length, "Value")
+    links.new(curve_length.outputs["Length"], even_length.inputs[1])
+    _link(links, index, "Index", step_length, "Value")
+    links.new(
+        _socket(group_input.outputs, properties.SOCKET_OBJECT_SPLINE_STEP),
+        step_length.inputs[1],
+    )
+    _link(links, is_step, "Value", sample_length, "Switch")
+    _link(links, even_length, "Value", sample_length, "False")
+    _link(links, step_length, "Value", sample_length, "True")
+    _link(links, curve_node, curve_socket, sample, "Curves")
+    _link(links, sample_length, "Output", sample, "Length")
+    _link(links, points, "Points", set_position, "Geometry")
+    _link(links, sample, "Position", set_position, "Position")
+    return set_position, sample
+
+
 def _build_object_distribution(
     nodes,
     links,
@@ -1182,7 +1305,30 @@ def _build_object_distribution(
     )
     mesh_vertices = _new_mesh_to_points_node(nodes, (x + 560, y + 260), "VERTICES")
     mesh_faces = _new_mesh_to_points_node(nodes, (x + 560, y + 40), "FACES")
-    curve_points = _new_node(nodes, "GeometryNodeCurveToPoints", (x + 260, y - 300))
+    evaluated_points = _new_node(nodes, "GeometryNodeCurveToPoints", (x + 500, y - 280))
+    count_points = _new_node(nodes, "GeometryNodeCurveToPoints", (x + 500, y - 420))
+    step_points = _new_node(nodes, "GeometryNodeCurveToPoints", (x + 500, y - 560))
+    sampled_points, sampled_curve = _build_global_curve_points(
+        nodes,
+        links,
+        group_input,
+        object_info,
+        "Geometry",
+        (x + 480, y - 900),
+    )
+    spline_points_switch = _new_geometry_index_switch_node(nodes, (x + 760, y - 460), 4)
+    spline_tangent_switch = _new_vector_index_switch_node(nodes, (x + 760, y - 700), 4)
+    spline_normal_switch = _new_vector_index_switch_node(nodes, (x + 760, y - 900), 4)
+    per_spline_points = _new_geometry_switch_node(nodes, (x + 980, y - 500))
+    per_spline_tangent = _new_vector_switch_node(nodes, (x + 980, y - 700))
+    per_spline_normal = _new_vector_switch_node(nodes, (x + 980, y - 900))
+    is_evaluated = _new_math_node(nodes, (x + 760, y - 1080), "COMPARE")
+    is_evaluated.inputs[1].default_value = 0.0
+    is_evaluated.inputs[2].default_value = 0.1
+    use_per_spline = _new_boolean_math_node(nodes, (x + 980, y - 1080), "OR")
+    curve_size = _new_node(nodes, "GeometryNodeAttributeDomainSize", (x + 260, y - 500))
+    has_curve = _new_math_node(nodes, (x + 500, y - 500), "GREATER_THAN")
+    effective_mode = _new_int_switch_node(nodes, (x + 700, y - 360))
     points_switch = _new_geometry_index_switch_node(nodes, (x + 900, y - 40), 3)
     normal_switch = _new_vector_index_switch_node(nodes, (x + 900, y + 260), 3)
     position = _new_node(nodes, "GeometryNodeInputPosition", (x + 900, y + 440))
@@ -1191,21 +1337,44 @@ def _build_object_distribution(
     normal_align_euler = _new_node(nodes, "FunctionNodeAlignEulerToVector", (x + 1420, y + 500))
     center_align_euler = _new_node(nodes, "FunctionNodeAlignEulerToVector", (x + 1420, y + 340))
     spline_align_euler = _new_node(nodes, "FunctionNodeAlignEulerToVector", (x + 1420, y + 180))
-    normal_align_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 1660, y + 500))
-    center_align_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 1660, y + 340))
+    smooth_spline_euler = _new_node(nodes, "FunctionNodeAlignEulerToVector", (x + 1580, y + 120))
+    spline_euler_switch = _new_vector_switch_node(nodes, (x + 1740, y + 160))
+    normal_up_align_euler = _new_node(nodes, "FunctionNodeAlignEulerToVector", (x + 1580, y + 500))
+    center_up_align_euler = _new_node(nodes, "FunctionNodeAlignEulerToVector", (x + 1580, y + 340))
+    normal_align_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 1760, y + 500))
+    center_align_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 1760, y + 340))
     spline_align_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 1660, y + 180))
     alignment_rotation = _new_rotation_index_switch_node(nodes, (x + 1840, y + 300), 4)
+    alignment_enabled = _new_math_node(nodes, (x + 1420, y - 140), "GREATER_THAN")
+    curve_alignment_value = _new_math_node(nodes, (x + 1620, y - 140), "MULTIPLY")
+    effective_alignment = _new_int_switch_node(nodes, (x + 1840, y - 20))
     zero_rotation_vector = _new_combine_xyz_node(nodes, (x + 1420, y + 20))
     zero_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 1660, y + 20))
     instance = _new_node(nodes, "GeometryNodeInstanceOnPoints", (x + 2140, y - 40))
 
-    curve_points.mode = "COUNT"
+    evaluated_points.mode = "EVALUATED"
+    count_points.mode = "COUNT"
+    step_points.mode = "LENGTH"
+    curve_size.component = "CURVE"
+    has_curve.inputs[1].default_value = 0.0
+    effective_mode.inputs["True"].default_value = 2
+    alignment_enabled.inputs[1].default_value = 0.0
+    curve_alignment_value.inputs[1].default_value = 3.0
     normal_align_euler.axis = "Z"
     center_align_euler.axis = "Z"
+    normal_up_align_euler.axis = "Y"
+    normal_up_align_euler.pivot_axis = "Z"
+    center_up_align_euler.axis = "Y"
+    center_up_align_euler.pivot_axis = "Z"
     spline_align_euler.axis = "X"
+    smooth_spline_euler.axis = "Z"
+    smooth_spline_euler.pivot_axis = "X"
     normal_align_euler.inputs["Factor"].default_value = 1.0
     center_align_euler.inputs["Factor"].default_value = 1.0
+    normal_up_align_euler.inputs["Factor"].default_value = 1.0
+    center_up_align_euler.inputs["Factor"].default_value = 1.0
     spline_align_euler.inputs["Factor"].default_value = 1.0
+    smooth_spline_euler.inputs["Factor"].default_value = 1.0
 
     _link(links, group_input, properties.SOCKET_OBJECT_DISTRIBUTION_OBJECT, object_info, "Object")
     _link(links, object_info, "Geometry", capture_vertex_normal, "Geometry")
@@ -1214,14 +1383,48 @@ def _build_object_distribution(
     _link(links, normal, "Normal", capture_face_normal, "Surface Normal")
     _link(links, capture_vertex_normal, "Geometry", mesh_vertices, "Mesh")
     _link(links, capture_face_normal, "Geometry", mesh_faces, "Mesh")
-    _link(links, object_info, "Geometry", curve_points, "Curve")
-    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_COUNT, curve_points, "Count")
-    _link(links, group_input, properties.SOCKET_OBJECT_DISTRIBUTION_MODE, points_switch, "Index")
+    _link(links, object_info, "Geometry", evaluated_points, "Curve")
+    _link(links, object_info, "Geometry", count_points, "Curve")
+    _link(links, object_info, "Geometry", step_points, "Curve")
+    _link(links, object_info, "Geometry", curve_size, "Geometry")
+    _link(links, curve_size, "Point Count", has_curve, "Value")
+    _link(links, has_curve, "Value", effective_mode, "Switch")
+    _link(links, group_input, properties.SOCKET_OBJECT_DISTRIBUTION_MODE, effective_mode, "False")
+    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_COUNT, count_points, "Count")
+    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_STEP, step_points, "Length")
+    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_DISTRIBUTION, spline_points_switch, "Index")
+    _link(links, evaluated_points, "Points", spline_points_switch, "0")
+    _link(links, count_points, "Points", spline_points_switch, "1")
+    _link(links, step_points, "Points", spline_points_switch, "2")
+    _link(links, count_points, "Points", spline_points_switch, "3")
+    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_DISTRIBUTION, spline_tangent_switch, "Index")
+    _link(links, evaluated_points, "Tangent", spline_tangent_switch, "0")
+    _link(links, count_points, "Tangent", spline_tangent_switch, "1")
+    _link(links, step_points, "Tangent", spline_tangent_switch, "2")
+    _link(links, count_points, "Tangent", spline_tangent_switch, "3")
+    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_DISTRIBUTION, spline_normal_switch, "Index")
+    _link(links, evaluated_points, "Normal", spline_normal_switch, "0")
+    _link(links, count_points, "Normal", spline_normal_switch, "1")
+    _link(links, step_points, "Normal", spline_normal_switch, "2")
+    _link(links, count_points, "Normal", spline_normal_switch, "3")
+    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_DISTRIBUTION, is_evaluated, "Value")
+    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_PER_SPLINE, use_per_spline, "Boolean")
+    _link(links, is_evaluated, "Value", use_per_spline, "Boolean_001")
+    _link(links, use_per_spline, "Boolean", per_spline_points, "Switch")
+    _link(links, sampled_points, "Geometry", per_spline_points, "False")
+    _link(links, spline_points_switch, "Output", per_spline_points, "True")
+    _link(links, use_per_spline, "Boolean", per_spline_tangent, "Switch")
+    _link(links, sampled_curve, "Tangent", per_spline_tangent, "False")
+    _link(links, spline_tangent_switch, "Output", per_spline_tangent, "True")
+    _link(links, use_per_spline, "Boolean", per_spline_normal, "Switch")
+    _link(links, sampled_curve, "Normal", per_spline_normal, "False")
+    _link(links, spline_normal_switch, "Output", per_spline_normal, "True")
+    _link(links, effective_mode, "Output", points_switch, "Index")
     _link(links, mesh_vertices, "Points", points_switch, "0")
     _link(links, mesh_faces, "Points", points_switch, "1")
-    _link(links, curve_points, "Points", points_switch, "2")
+    _link(links, per_spline_points, "Output", points_switch, "2")
 
-    _link(links, group_input, properties.SOCKET_OBJECT_DISTRIBUTION_MODE, normal_switch, "Index")
+    _link(links, effective_mode, "Output", normal_switch, "Index")
     _link(links, capture_vertex_normal, "Surface Normal", normal_switch, "0")
     _link(links, capture_face_normal, "Surface Normal", normal_switch, "1")
 
@@ -1231,12 +1434,58 @@ def _build_object_distribution(
     _link(links, center_direction, "Vector", capture_direction, "Center Direction")
     _link(links, normal_switch, "Output", normal_align_euler, "Vector")
     _link(links, capture_direction, "Center Direction", center_align_euler, "Vector")
-    _link(links, curve_points, "Tangent", spline_align_euler, "Vector")
-    _link(links, normal_align_euler, "Rotation", normal_align_rotation, "Euler")
-    _link(links, center_align_euler, "Rotation", center_align_rotation, "Euler")
-    _link(links, spline_align_euler, "Rotation", spline_align_rotation, "Euler")
+    _link(links, per_spline_tangent, "Output", spline_align_euler, "Vector")
+    _link(links, spline_align_euler, "Rotation", smooth_spline_euler, "Rotation")
+    _link(links, per_spline_normal, "Output", smooth_spline_euler, "Vector")
+    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION, spline_euler_switch, "Switch")
+    _link(links, spline_align_euler, "Rotation", spline_euler_switch, "False")
+    _link(links, smooth_spline_euler, "Rotation", spline_euler_switch, "True")
+    up_x = _new_combine_xyz_node(nodes, (x + 1200, y + 700))
+    up_y = _new_combine_xyz_node(nodes, (x + 1200, y + 640))
+    up_z = _new_combine_xyz_node(nodes, (x + 1200, y + 580))
+    up_x.inputs["X"].default_value = 1.0
+    up_y.inputs["Y"].default_value = 1.0
+    up_z.inputs["Z"].default_value = 1.0
+    use_center_direction = _new_math_node(nodes, (x + 980, y + 820), "COMPARE")
+    use_center_direction.inputs[1].default_value = 2.0
+    use_center_direction.inputs[2].default_value = 0.1
+    primary_direction = _new_vector_switch_node(nodes, (x + 1160, y + 820))
+    normal_dot_z = _new_vector_math_node(nodes, (x + 1340, y + 760), "DOT_PRODUCT")
+    abs_normal_dot_z = _new_math_node(nodes, (x + 1360, y + 760), "ABSOLUTE")
+    use_auto_y = _new_math_node(nodes, (x + 1540, y + 760), "GREATER_THAN")
+    use_auto_y.inputs[1].default_value = 0.95
+    auto_up = _new_vector_switch_node(nodes, (x + 1720, y + 700))
+    up_vector = _new_vector_index_switch_node(nodes, (x + 1900, y + 700), 4)
+    _link(links, group_input, properties.SOCKET_OBJECT_ALIGNMENT, use_center_direction, "Value")
+    _link(links, use_center_direction, "Value", primary_direction, "Switch")
+    _link(links, normal_switch, "Output", primary_direction, "False")
+    _link(links, capture_direction, "Center Direction", primary_direction, "True")
+    _link(links, primary_direction, "Output", normal_dot_z, "Vector")
+    links.new(up_z.outputs["Vector"], normal_dot_z.inputs[1])
+    _link(links, normal_dot_z, "Value", abs_normal_dot_z, "Value")
+    _link(links, abs_normal_dot_z, "Value", use_auto_y, "Value")
+    _link(links, use_auto_y, "Value", auto_up, "Switch")
+    _link(links, up_z, "Vector", auto_up, "False")
+    _link(links, up_y, "Vector", auto_up, "True")
+    _link(links, group_input, properties.SOCKET_OBJECT_UP_VECTOR, up_vector, "Index")
+    _link(links, auto_up, "Output", up_vector, "0")
+    _link(links, up_x, "Vector", up_vector, "1")
+    _link(links, up_y, "Vector", up_vector, "2")
+    _link(links, up_z, "Vector", up_vector, "3")
+    _link(links, normal_align_euler, "Rotation", normal_up_align_euler, "Rotation")
+    _link(links, up_vector, "Output", normal_up_align_euler, "Vector")
+    _link(links, center_align_euler, "Rotation", center_up_align_euler, "Rotation")
+    _link(links, up_vector, "Output", center_up_align_euler, "Vector")
+    _link(links, normal_up_align_euler, "Rotation", normal_align_rotation, "Euler")
+    _link(links, center_up_align_euler, "Rotation", center_align_rotation, "Euler")
+    _link(links, spline_euler_switch, "Output", spline_align_rotation, "Euler")
     _link(links, zero_rotation_vector, "Vector", zero_rotation, "Euler")
-    _link(links, group_input, properties.SOCKET_OBJECT_ALIGNMENT, alignment_rotation, "Index")
+    _link(links, group_input, properties.SOCKET_OBJECT_ALIGNMENT, alignment_enabled, "Value")
+    _link(links, alignment_enabled, "Value", curve_alignment_value, "Value")
+    _link(links, has_curve, "Value", effective_alignment, "Switch")
+    _link(links, group_input, properties.SOCKET_OBJECT_ALIGNMENT, effective_alignment, "False")
+    _link(links, curve_alignment_value, "Value", effective_alignment, "True")
+    _link(links, effective_alignment, "Output", alignment_rotation, "Index")
     _link(links, zero_rotation, "Rotation", alignment_rotation, "0")
     _link(links, normal_align_rotation, "Rotation", alignment_rotation, "1")
     _link(links, center_align_rotation, "Rotation", alignment_rotation, "2")
@@ -1884,6 +2133,12 @@ def _new_math_node(nodes, location: tuple[int, int], operation: str):
     return node
 
 
+def _new_boolean_math_node(nodes, location: tuple[int, int], operation: str):
+    node = _new_node(nodes, "FunctionNodeBooleanMath", location)
+    node.operation = operation
+    return node
+
+
 def _new_rotation_switch_node(nodes, location: tuple[int, int]):
     node = _new_node(nodes, "GeometryNodeSwitch", location)
     node.input_type = "ROTATION"
@@ -1893,6 +2148,18 @@ def _new_rotation_switch_node(nodes, location: tuple[int, int]):
 def _new_float_switch_node(nodes, location: tuple[int, int]):
     node = _new_node(nodes, "GeometryNodeSwitch", location)
     node.input_type = "FLOAT"
+    return node
+
+
+def _new_int_switch_node(nodes, location: tuple[int, int]):
+    node = _new_node(nodes, "GeometryNodeSwitch", location)
+    node.input_type = "INT"
+    return node
+
+
+def _new_geometry_switch_node(nodes, location: tuple[int, int]):
+    node = _new_node(nodes, "GeometryNodeSwitch", location)
+    node.input_type = "GEOMETRY"
     return node
 
 
