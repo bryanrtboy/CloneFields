@@ -73,8 +73,13 @@ def _sync_effector_shape(self, context) -> None:
             self.effector_object,
             self.effector_shape,
             self.effector_radius,
+            self.effector_type,
         )
-        effectors.rename_effector_object(self.effector_object, self.effector_shape)
+        effectors.rename_effector_object(
+            self.effector_object,
+            self.effector_shape,
+            self.effector_type,
+        )
 
 
 def _sync_effector_enabled(self, context) -> None:
@@ -181,11 +186,14 @@ def _sync_effector_slot_value(
     modifier_value = (
         _combined_effector_strength(self, slot_index, value)
         if socket_key == "strength"
+        else effectors.effector_type_value(value)
+        if socket_key == "type"
         else value
     )
     object_property = _effector_slot_property_name(slot_index, "object")
     shape_property = _effector_slot_property_name(slot_index, "shape")
     radius_property = _effector_slot_property_name(slot_index, "radius")
+    type_property = _effector_slot_property_name(slot_index, "type")
 
     if socket_key == "shape":
         effector = getattr(self, object_property)
@@ -194,8 +202,13 @@ def _sync_effector_slot_value(
                 effector,
                 getattr(self, shape_property),
                 getattr(self, radius_property),
+                getattr(self, type_property),
             )
-            effectors.rename_effector_object(effector, getattr(self, shape_property))
+            effectors.rename_effector_object(
+                effector,
+                getattr(self, shape_property),
+                getattr(self, type_property),
+            )
         return
 
     _sync_modifier_value(
@@ -413,14 +426,14 @@ def _combined_effector_strength(self, slot_index: int, cloner_strength: int) -> 
 
 def _sync_effector_settings(self, context) -> None:
     obj = self.id_data
-    effectors.configure_effector_object(obj, self.shape, self.radius)
-    effectors.rename_effector_object(obj, self.shape)
+    effectors.configure_effector_object(obj, self.shape, self.radius, self.type)
+    effectors.rename_effector_object(obj, self.shape, self.type)
     effectors.sync_effector_to_referencing_cloners(obj)
 
 
 def _sync_effector_radius_setting(self, context) -> None:
     obj = self.id_data
-    effectors.configure_effector_object(obj, self.shape, self.radius)
+    effectors.configure_effector_object(obj, self.shape, self.radius, self.type)
     effectors.sync_effector_to_referencing_cloners(obj)
 
 
@@ -429,10 +442,22 @@ def _effector_slot_property_name(slot_index: int, key: str) -> str:
 
 
 class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
+    type: EnumProperty(
+        name="Type",
+        items=effectors.EFFECTOR_TYPE_ITEMS,
+        default=effectors.EFFECTOR_TYPE_BASIC,
+        update=_sync_effector_settings,
+    )
     shape: EnumProperty(
         name="Field",
         items=effectors.FIELD_SHAPE_ITEMS,
         default=effectors.FIELD_SHAPE_SPHERE,
+        update=_sync_effector_settings,
+    )
+    seed: IntProperty(
+        name="Seed",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SEED],
+        min=0,
         update=_sync_effector_settings,
     )
     invert: BoolProperty(
@@ -567,6 +592,18 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=effectors.FIELD_SHAPE_SPHERE,
         update=_sync_effector_shape,
     )
+    effector_type: EnumProperty(
+        name="Type",
+        items=effectors.EFFECTOR_TYPE_ITEMS,
+        default=effectors.EFFECTOR_TYPE_BASIC,
+        update=lambda self, context: _sync_effector_slot_value(self, 0, "type", "effector_type"),
+    )
+    effector_seed: IntProperty(
+        name="Seed",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SEED],
+        min=0,
+        update=lambda self, context: _sync_effector_slot_value(self, 0, "seed", "effector_seed"),
+    )
     effector_object: PointerProperty(
         name=properties.SOCKET_EFFECTOR_OBJECT,
         description="Basic Effector controller object",
@@ -685,6 +722,18 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=effectors.FIELD_SHAPE_SPHERE,
         update=lambda self, context: _sync_effector_slot_value(self, 1, "shape", "effector2_shape"),
     )
+    effector2_type: EnumProperty(
+        name="Type",
+        items=effectors.EFFECTOR_TYPE_ITEMS,
+        default=effectors.EFFECTOR_TYPE_BASIC,
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "type", "effector2_type"),
+    )
+    effector2_seed: IntProperty(
+        name="Seed",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_SEED],
+        min=0,
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "seed", "effector2_seed"),
+    )
     effector2_object: PointerProperty(
         name=properties.SOCKET_EFFECTOR_2_OBJECT,
         description="Second Basic Effector controller object",
@@ -802,6 +851,18 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         items=effectors.FIELD_SHAPE_ITEMS,
         default=effectors.FIELD_SHAPE_SPHERE,
         update=lambda self, context: _sync_effector_slot_value(self, 2, "shape", "effector3_shape"),
+    )
+    effector3_type: EnumProperty(
+        name="Type",
+        items=effectors.EFFECTOR_TYPE_ITEMS,
+        default=effectors.EFFECTOR_TYPE_BASIC,
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "type", "effector3_type"),
+    )
+    effector3_seed: IntProperty(
+        name="Seed",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_SEED],
+        min=0,
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "seed", "effector3_seed"),
     )
     effector3_object: PointerProperty(
         name=properties.SOCKET_EFFECTOR_3_OBJECT,

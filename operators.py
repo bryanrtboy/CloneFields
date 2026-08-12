@@ -104,36 +104,17 @@ class CLONE_FIELDS_OT_add_plain_effector(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        cloner_object = context.object
-        modifier = modifier_inputs.get_cloner_modifier(cloner_object)
-        if modifier is None:
-            self.report({"ERROR"}, "Select a Clone Fields cloner first")
-            return {"CANCELLED"}
+        return _add_effector(context, self, effectors.EFFECTOR_TYPE_BASIC)
 
-        settings = cloner_object.clone_fields_cloner
-        slot_index = _first_empty_effector_slot(settings)
-        if slot_index is None:
-            self.report({"ERROR"}, "This milestone supports up to three Effectors")
-            return {"CANCELLED"}
-        slot_properties = EFFECTOR_SLOT_PROPERTIES[slot_index]
-        shape = getattr(settings, slot_properties["shape"])
-        effector = bpy.data.objects.new(effectors.basic_effector_name(shape), None)
-        radius = properties.GRID_INPUT_DEFAULTS[
-            properties.EFFECTOR_SOCKET_SETS[slot_index]["radius"]
-        ]
-        effectors.configure_effector_object(effector, shape, radius)
-        context.collection.objects.link(effector)
-        if hasattr(effector, "clone_fields_effector"):
-            effector.clone_fields_effector.shape = shape
-            effector.clone_fields_effector.radius = radius
-        effector.location = cloner_object.location
 
-        _assign_effector_to_slot(settings, modifier, slot_index, effector, shape)
+class CLONE_FIELDS_OT_add_random_effector(bpy.types.Operator):
+    bl_idname = "clone_fields.add_random_effector"
+    bl_label = "Add Random Effector"
+    bl_description = "Add a Random Effector to the active Cloner"
+    bl_options = {"REGISTER", "UNDO"}
 
-        bpy.ops.object.select_all(action="DESELECT")
-        cloner_object.select_set(True)
-        context.view_layer.objects.active = cloner_object
-        return {"FINISHED"}
+    def execute(self, context):
+        return _add_effector(context, self, effectors.EFFECTOR_TYPE_RANDOM)
 
 
 class CLONE_FIELDS_OT_link_existing_effector(bpy.types.Operator):
@@ -181,9 +162,21 @@ class CLONE_FIELDS_OT_link_existing_effector(bpy.types.Operator):
 
         if hasattr(effector, "clone_fields_effector"):
             shape = effector.clone_fields_effector.shape
+            effector_type = effector.clone_fields_effector.type
         else:
             shape = effector.get(properties.PROP_EFFECTOR_SHAPE, effectors.FIELD_SHAPE_SPHERE)
-        _assign_effector_to_slot(settings, modifier, slot_index, effector, shape)
+            effector_type = effector.get(
+                properties.PROP_EFFECTOR_TYPE,
+                effectors.EFFECTOR_TYPE_BASIC,
+            )
+        _assign_effector_to_slot(
+            settings,
+            modifier,
+            slot_index,
+            effector,
+            shape,
+            effector_type,
+        )
 
         bpy.ops.object.select_all(action="DESELECT")
         cloner_object.select_set(True)
@@ -302,6 +295,7 @@ class CLONE_FIELDS_OT_delete_effector(bpy.types.Operator):
 classes = (
     CLONE_FIELDS_OT_add_cloner,
     CLONE_FIELDS_OT_add_plain_effector,
+    CLONE_FIELDS_OT_add_random_effector,
     CLONE_FIELDS_OT_link_existing_effector,
     CLONE_FIELDS_OT_move_plain_effector,
     CLONE_FIELDS_OT_select_plain_effector,
@@ -323,9 +317,11 @@ def _assign_effector_to_slot(
     slot_index: int,
     effector: bpy.types.Object,
     shape: str,
+    effector_type: str,
 ) -> None:
     slot_properties = EFFECTOR_SLOT_PROPERTIES[slot_index]
     _reset_effector_slot(settings, slot_index)
+    setattr(settings, slot_properties["type"], effector_type)
     setattr(settings, slot_properties["shape"], shape)
     setattr(settings, slot_properties["object"], effector)
     setattr(settings, slot_properties["enabled"], True)
@@ -346,17 +342,19 @@ def _reset_effector_slot(settings, slot_index: int) -> None:
     for key, property_name in slot_properties.items():
         if key in {"object", "shape"}:
             continue
-        default = (
-            properties.EFFECTOR_STRENGTH_PERCENT_DEFAULT
-            if key == "strength"
-            else properties.GRID_INPUT_DEFAULTS[socket_set[key]]
-        )
+        if key == "strength":
+            default = properties.EFFECTOR_STRENGTH_PERCENT_DEFAULT
+        elif key == "type":
+            default = effectors.EFFECTOR_TYPE_BASIC
+        else:
+            default = properties.GRID_INPUT_DEFAULTS[socket_set[key]]
         setattr(settings, property_name, default)
 
 
 def _clear_effector_slot(settings, slot_index: int) -> None:
     slot_properties = EFFECTOR_SLOT_PROPERTIES[slot_index]
     setattr(settings, slot_properties["object"], None)
+    setattr(settings, slot_properties["type"], effectors.EFFECTOR_TYPE_BASIC)
     setattr(settings, slot_properties["shape"], effectors.FIELD_SHAPE_SPHERE)
     _reset_effector_slot(settings, slot_index)
 
@@ -406,6 +404,52 @@ def _sync_all_effector_slots(settings, modifier) -> None:
         if getattr(settings, slot["object"]) is None:
             continue
         effectors.sync_effector_slot(settings, modifier, index)
+
+
+def _add_effector(context, operator, effector_type: str):
+    cloner_object = context.object
+    modifier = modifier_inputs.get_cloner_modifier(cloner_object)
+    if modifier is None:
+        operator.report({"ERROR"}, "Select a Clone Fields cloner first")
+        return {"CANCELLED"}
+
+    settings = cloner_object.clone_fields_cloner
+    slot_index = _first_empty_effector_slot(settings)
+    if slot_index is None:
+        operator.report({"ERROR"}, "This milestone supports up to three Effectors")
+        return {"CANCELLED"}
+
+    slot_properties = EFFECTOR_SLOT_PROPERTIES[slot_index]
+    shape = (
+        effectors.FIELD_SHAPE_NONE
+        if effector_type == effectors.EFFECTOR_TYPE_RANDOM
+        else getattr(settings, slot_properties["shape"])
+    )
+    radius = properties.GRID_INPUT_DEFAULTS[
+        properties.EFFECTOR_SOCKET_SETS[slot_index]["radius"]
+    ]
+    effector = bpy.data.objects.new(effectors.effector_name(effector_type, shape), None)
+    effectors.configure_effector_object(effector, shape, radius, effector_type)
+    context.collection.objects.link(effector)
+    if hasattr(effector, "clone_fields_effector"):
+        effector.clone_fields_effector.type = effector_type
+        effector.clone_fields_effector.shape = shape
+        effector.clone_fields_effector.radius = radius
+        if effector_type == effectors.EFFECTOR_TYPE_RANDOM:
+            effector.clone_fields_effector.use_position = True
+            effector.clone_fields_effector.position_x = 0.25
+            effector.clone_fields_effector.position_y = 0.25
+            effector.clone_fields_effector.position_z = 0.25
+            effector.clone_fields_effector.use_rotation = False
+            effector.clone_fields_effector.use_scale = False
+    effector.location = cloner_object.location
+
+    _assign_effector_to_slot(settings, modifier, slot_index, effector, shape, effector_type)
+
+    bpy.ops.object.select_all(action="DESELECT")
+    cloner_object.select_set(True)
+    context.view_layer.objects.active = cloner_object
+    return {"FINISHED"}
 
 
 def register() -> None:

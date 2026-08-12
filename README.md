@@ -56,13 +56,16 @@ To use multiple sources, parent additional source objects directly under the
 Cloner. Clone Fields alternates through the child sources by clone index. Empty
 objects can be used as blank/spacer sources.
 
-To add Basic Effectors, select a Cloner and use the `Add Basic Effector` button
-in the Clone Fields modifier panel. This creates a visible controller object in
-the scene named like `Basic Effector [Spherical]`. The Field menu currently
-supports Spherical, Cubic, Cylindrical, and Linear fields; changing it renames
-the Effector and updates the viewport guide. Cylindrical fields add a Height
-control, and Linear fields use Length to separate two boundary planes along the
-Effector's local X axis. Move or keyframe the controller objects
+To add Effectors, select a Cloner and use `New Basic` or `New Random` in the
+Clone Fields modifier panel. This creates a visible controller object in the
+scene named like `Basic Effector [Spherical]` or `Random Effector [None]`.
+The Field menu supports None, Spherical, Cubic, Cylindrical, and Linear fields;
+changing it renames the Effector and updates the viewport guide. `None` affects
+all clones without drawing a field shape, and is the default for Random
+Effectors. Cylindrical fields add a Height control, and Linear fields use Length
+to separate two boundary planes along the Effector's local X axis. Random
+Effectors use Seed plus Position, Rotation, and Scale Variation ranges. Move or
+keyframe the controller objects
 directly, or use the Effector stack's scene-select icon to make one active for
 movement. The stack also lets you select an effector for editing, enable it,
 reorder it, or remove it. Use `Link Existing` to share one Effector object across

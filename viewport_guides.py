@@ -185,6 +185,11 @@ def _draw_effector_guides(batch_for_shader, shader, settings, slot, *, selected:
         return
 
     effector_settings = getattr(effector, "clone_fields_effector", None)
+    if (
+        effector_settings is not None
+        and effector_settings.shape == effectors.FIELD_SHAPE_NONE
+    ):
+        return
     outer_radius = max(
         0.0,
         effector_settings.radius if effector_settings is not None else getattr(settings, slot["radius"]),

@@ -102,7 +102,8 @@ def _draw_effectors(layout, settings) -> None:
 
     if has_empty_slot:
         add_row = list_box.row(align=True)
-        add_row.operator("clone_fields.add_plain_effector", text="New Basic Effector")
+        add_row.operator("clone_fields.add_plain_effector", text="New Basic")
+        add_row.operator("clone_fields.add_random_effector", text="New Random")
         add_row.operator("clone_fields.link_existing_effector", text="Link Existing")
 
     selected_slot = _selected_effector_slot(settings)
@@ -153,29 +154,35 @@ def _draw_effector_slot(layout, settings, slot: dict) -> None:
         return
 
     box.prop(effector_settings, "shape", text="Field")
+    if effector_settings.type == effectors.EFFECTOR_TYPE_RANDOM:
+        box.prop(effector_settings, "seed")
     box.prop(effector_settings, "invert")
     box.prop(effector_settings, "strength")
-    if effector_settings.shape == effectors.FIELD_SHAPE_LINEAR:
-        box.prop(effector_settings, "length")
-    elif effector_settings.shape == effectors.FIELD_SHAPE_CUBE:
-        box.prop(effector_settings, "radius", text="Size")
-    else:
-        box.prop(effector_settings, "radius")
-    if effector_settings.shape == effectors.FIELD_SHAPE_CYLINDER:
-        box.prop(effector_settings, "height")
-    box.prop(effector_settings, "falloff")
+    if effector_settings.shape != effectors.FIELD_SHAPE_NONE:
+        if effector_settings.shape == effectors.FIELD_SHAPE_LINEAR:
+            box.prop(effector_settings, "length")
+        elif effector_settings.shape == effectors.FIELD_SHAPE_CUBE:
+            box.prop(effector_settings, "radius", text="Size")
+        else:
+            box.prop(effector_settings, "radius")
+        if effector_settings.shape == effectors.FIELD_SHAPE_CYLINDER:
+            box.prop(effector_settings, "height")
+        box.prop(effector_settings, "falloff")
 
     box.prop(effector_settings, "use_position")
     if effector_settings.use_position:
-        _draw_xyz_row(box, effector_settings, "", "position_x", "position_y", "position_z")
+        label = "Position Variation" if effector_settings.type == effectors.EFFECTOR_TYPE_RANDOM else ""
+        _draw_xyz_row(box, effector_settings, label, "position_x", "position_y", "position_z")
 
     box.prop(effector_settings, "use_rotation")
     if effector_settings.use_rotation:
-        _draw_xyz_row(box, effector_settings, "", "rotation_x", "rotation_y", "rotation_z")
+        label = "Rotation Variation" if effector_settings.type == effectors.EFFECTOR_TYPE_RANDOM else ""
+        _draw_xyz_row(box, effector_settings, label, "rotation_x", "rotation_y", "rotation_z")
 
     box.prop(effector_settings, "use_scale")
     if effector_settings.use_scale:
-        _draw_xyz_row(box, effector_settings, "", "scale_x", "scale_y", "scale_z")
+        label = "Scale Variation" if effector_settings.type == effectors.EFFECTOR_TYPE_RANDOM else ""
+        _draw_xyz_row(box, effector_settings, label, "scale_x", "scale_y", "scale_z")
 
     box.separator()
     box.prop(settings, slot["strength"], text="Cloner Influence")

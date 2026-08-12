@@ -9,19 +9,37 @@ from . import properties
 
 
 EFFECTOR_TYPE_BASIC = "BASIC"
+EFFECTOR_TYPE_RANDOM = "RANDOM"
 LEGACY_EFFECTOR_TYPE_PLAIN = "PLAIN"
+EFFECTOR_TYPE_VALUES = {
+    EFFECTOR_TYPE_BASIC: 0,
+    EFFECTOR_TYPE_RANDOM: 1,
+    LEGACY_EFFECTOR_TYPE_PLAIN: 0,
+}
+EFFECTOR_TYPE_ITEMS = (
+    (EFFECTOR_TYPE_BASIC, "Basic", "Basic transform effector"),
+    (EFFECTOR_TYPE_RANDOM, "Random", "Random transform effector"),
+)
+EFFECTOR_TYPE_LABELS = {
+    EFFECTOR_TYPE_BASIC: "Basic",
+    EFFECTOR_TYPE_RANDOM: "Random",
+    LEGACY_EFFECTOR_TYPE_PLAIN: "Basic",
+}
 FIELD_SHAPE_SPHERE = "SPHERE"
 FIELD_SHAPE_CUBE = "CUBE"
 FIELD_SHAPE_CYLINDER = "CYLINDER"
 FIELD_SHAPE_LINEAR = "LINEAR"
+FIELD_SHAPE_NONE = "NONE"
 FIELD_SHAPE_VALUES = {
     FIELD_SHAPE_SPHERE: 0,
     FIELD_SHAPE_CUBE: 1,
     FIELD_SHAPE_CYLINDER: 2,
     FIELD_SHAPE_LINEAR: 3,
+    FIELD_SHAPE_NONE: 4,
 }
 
 FIELD_SHAPE_ITEMS = (
+    (FIELD_SHAPE_NONE, "None", "Affect all clones without a field shape"),
     (FIELD_SHAPE_SPHERE, "Spherical", "Spherical field"),
     (FIELD_SHAPE_CUBE, "Cubic", "Cubic field"),
     (FIELD_SHAPE_CYLINDER, "Cylindrical", "Cylindrical field"),
@@ -29,6 +47,7 @@ FIELD_SHAPE_ITEMS = (
 )
 
 FIELD_SHAPE_LABELS = {
+    FIELD_SHAPE_NONE: "None",
     FIELD_SHAPE_SPHERE: "Spherical",
     FIELD_SHAPE_CUBE: "Cubic",
     FIELD_SHAPE_CYLINDER: "Cylindrical",
@@ -38,7 +57,9 @@ FIELD_SHAPE_LABELS = {
 EFFECTOR_SLOT_PROPERTIES = (
     {
         "object": "effector_object",
+        "type": "effector_type",
         "shape": "effector_shape",
+        "seed": "effector_seed",
         "enabled": "effector_enabled",
         "invert": "effector_invert",
         "strength": "effector_strength",
@@ -59,7 +80,9 @@ EFFECTOR_SLOT_PROPERTIES = (
     },
     {
         "object": "effector2_object",
+        "type": "effector2_type",
         "shape": "effector2_shape",
+        "seed": "effector2_seed",
         "enabled": "effector2_enabled",
         "invert": "effector2_invert",
         "strength": "effector2_strength",
@@ -80,7 +103,9 @@ EFFECTOR_SLOT_PROPERTIES = (
     },
     {
         "object": "effector3_object",
+        "type": "effector3_type",
         "shape": "effector3_shape",
+        "seed": "effector3_seed",
         "enabled": "effector3_enabled",
         "invert": "effector3_invert",
         "strength": "effector3_strength",
@@ -102,7 +127,9 @@ EFFECTOR_SLOT_PROPERTIES = (
 )
 
 EFFECTOR_GLOBAL_KEYS = (
+    "type",
     "shape",
+    "seed",
     "invert",
     "radius",
     "height",
@@ -129,8 +156,24 @@ def field_shape_label(shape: str) -> str:
     return FIELD_SHAPE_LABELS.get(shape, "Spherical")
 
 
+def effector_type_label(effector_type: str) -> str:
+    return EFFECTOR_TYPE_LABELS.get(effector_type, "Basic")
+
+
+def effector_type_value(effector_type: str) -> int:
+    return EFFECTOR_TYPE_VALUES.get(effector_type, EFFECTOR_TYPE_VALUES[EFFECTOR_TYPE_BASIC])
+
+
+def effector_name(effector_type: str, shape: str) -> str:
+    return f"{effector_type_label(effector_type)} Effector [{field_shape_label(shape)}]"
+
+
 def basic_effector_name(shape: str) -> str:
-    return f"Basic Effector [{field_shape_label(shape)}]"
+    return effector_name(EFFECTOR_TYPE_BASIC, shape)
+
+
+def random_effector_name(shape: str) -> str:
+    return effector_name(EFFECTOR_TYPE_RANDOM, shape)
 
 
 def is_effector_object(obj: bpy.types.Object | None) -> bool:
@@ -138,12 +181,20 @@ def is_effector_object(obj: bpy.types.Object | None) -> bool:
         return False
     return obj.get(properties.PROP_EFFECTOR_TYPE) in {
         EFFECTOR_TYPE_BASIC,
+        EFFECTOR_TYPE_RANDOM,
         LEGACY_EFFECTOR_TYPE_PLAIN,
     }
 
 
-def configure_effector_object(obj: bpy.types.Object, shape: str, radius: float) -> None:
-    if shape == FIELD_SHAPE_CUBE:
+def configure_effector_object(
+    obj: bpy.types.Object,
+    shape: str,
+    radius: float,
+    effector_type: str | None = None,
+) -> None:
+    if shape == FIELD_SHAPE_NONE:
+        obj.empty_display_type = "PLAIN_AXES"
+    elif shape == FIELD_SHAPE_CUBE:
         obj.empty_display_type = "CUBE"
     elif shape == FIELD_SHAPE_CYLINDER:
         obj.empty_display_type = "CIRCLE"
@@ -156,7 +207,10 @@ def configure_effector_object(obj: bpy.types.Object, shape: str, radius: float) 
     obj.hide_render = True
     obj.scale = (1.0, 1.0, 1.0)
     obj.lock_scale = (True, True, True)
-    obj[properties.PROP_EFFECTOR_TYPE] = EFFECTOR_TYPE_BASIC
+    obj[properties.PROP_EFFECTOR_TYPE] = effector_type or obj.get(
+        properties.PROP_EFFECTOR_TYPE,
+        EFFECTOR_TYPE_BASIC,
+    )
     obj[properties.PROP_EFFECTOR_SHAPE] = shape
 
 
@@ -181,10 +235,16 @@ def field_shape_value(shape: str) -> int:
     return FIELD_SHAPE_VALUES.get(shape, FIELD_SHAPE_VALUES[FIELD_SHAPE_SPHERE])
 
 
-def rename_effector_object(obj: bpy.types.Object | None, shape: str) -> None:
+def rename_effector_object(
+    obj: bpy.types.Object | None,
+    shape: str,
+    effector_type: str | None = None,
+) -> None:
     if obj is None:
         return
-    obj.name = basic_effector_name(shape)
+    obj_type = effector_type or obj.get(properties.PROP_EFFECTOR_TYPE, EFFECTOR_TYPE_BASIC)
+    obj.name = effector_name(obj_type, shape)
+    obj[properties.PROP_EFFECTOR_TYPE] = obj_type
     obj[properties.PROP_EFFECTOR_SHAPE] = shape
 
 
@@ -215,8 +275,13 @@ def sync_effector_slot(settings, modifier, slot_index: int) -> None:
     slot = EFFECTOR_SLOT_PROPERTIES[slot_index]
     sockets = properties.EFFECTOR_SOCKET_SETS[slot_index]
     effector_settings = effector.clone_fields_effector
-    configure_effector_object(effector, effector_settings.shape, effector_settings.radius)
-    rename_effector_object(effector, effector_settings.shape)
+    configure_effector_object(
+        effector,
+        effector_settings.shape,
+        effector_settings.radius,
+        effector_settings.type,
+    )
+    rename_effector_object(effector, effector_settings.shape, effector_settings.type)
 
     modifier_inputs.set_modifier_input(modifier, sockets["object"], effector)
     modifier_inputs.set_modifier_input(
@@ -227,11 +292,12 @@ def sync_effector_slot(settings, modifier, slot_index: int) -> None:
     for key in EFFECTOR_GLOBAL_KEYS:
         if key == "shape":
             continue
-        modifier_inputs.set_modifier_input(
-            modifier,
-            sockets[key],
-            getattr(effector_settings, key),
+        value = (
+            effector_type_value(effector_settings.type)
+            if key == "type"
+            else getattr(effector_settings, key)
         )
+        modifier_inputs.set_modifier_input(modifier, sockets[key], value)
 
     combined_strength = (
         effector_settings.strength

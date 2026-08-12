@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "clone_fields"
-version = "0.1.40"
+version = "0.1.42"
 name = "Clone Fields"
 tagline = "Procedural clone fields for modeling"
 maintainer = "Bryan Leister"

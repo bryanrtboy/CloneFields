@@ -512,6 +512,66 @@ def main() -> None:
         assert abs(effector_modifier[effector_strength_id] - 1.0) < 0.0001
 
         bpy.ops.mesh.primitive_cube_add(location=(14.0, 0.0, 0.0))
+        random_source = bpy.context.object
+        random_source.name = "Random Effector Source"
+        random_result = bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=random_source.name,
+            count_x=5,
+            count_y=1,
+            count_z=1,
+            spacing_x=1.25,
+            spacing_y=2.0,
+            spacing_z=2.0,
+        )
+        assert random_result == {"FINISHED"}, random_result
+        random_cloner = bpy.context.object
+        random_add_result = bpy.ops.clone_fields.add_random_effector("EXEC_DEFAULT")
+        assert random_add_result == {"FINISHED"}, random_add_result
+        random_effector = random_cloner.clone_fields_cloner.effector_object
+        assert random_effector.name.startswith("Random Effector [None]")
+        assert random_effector.get(props.PROP_EFFECTOR_TYPE) == "RANDOM"
+        random_effector_settings = random_effector.clone_fields_effector
+        assert random_effector_settings.type == "RANDOM"
+        assert random_effector_settings.shape == eff.FIELD_SHAPE_NONE
+        assert random_effector_settings.use_position
+        random_modifier = random_cloner.modifiers["Cloner"]
+        random_type_id = _modifier_input_id(
+            inputs,
+            random_modifier,
+            props.SOCKET_EFFECTOR_TYPE,
+        )
+        random_field_id = _modifier_input_id(
+            inputs,
+            random_modifier,
+            props.SOCKET_EFFECTOR_FIELD,
+        )
+        assert random_modifier[random_type_id] == 1
+        assert random_modifier[random_field_id] == eff.field_shape_value(eff.FIELD_SHAPE_NONE)
+        random_effector_settings.radius = 10.0
+        random_effector_settings.position_x = 1.0
+        random_effector_settings.position_y = 0.0
+        random_effector_settings.position_z = 0.0
+        random_effector_settings.seed = 7
+        random_cloner.update_tag()
+        random_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        seed_7_vertices = _evaluated_vertices(random_cloner)
+        random_effector_settings.seed = 19
+        random_cloner.update_tag()
+        random_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        seed_19_vertices = _evaluated_vertices(random_cloner)
+        assert any(
+            abs(before[0] - after[0]) > 0.001
+            for before, after in zip(seed_7_vertices, seed_19_vertices)
+        )
+
+        bpy.ops.object.select_all(action="DESELECT")
+        effector_cloner.select_set(True)
+        bpy.context.view_layer.objects.active = effector_cloner
+
+        bpy.ops.mesh.primitive_cube_add(location=(14.0, 0.0, 0.0))
         shared_source = bpy.context.object
         shared_source.name = "Shared Effector Source"
         shared_result = bpy.ops.clone_fields.add_cloner(

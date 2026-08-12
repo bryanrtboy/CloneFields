@@ -127,6 +127,16 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     )
     socket = _new_socket(
         interface,
+        properties.SOCKET_EFFECTOR_TYPE,
+        "INPUT",
+        "NodeSocketInt",
+        parent=effector_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_TYPE]
+    socket.min_value = 0
+    socket.max_value = 1
+    socket = _new_socket(
+        interface,
         properties.SOCKET_EFFECTOR_FIELD,
         "INPUT",
         "NodeSocketInt",
@@ -134,7 +144,16 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     )
     socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_FIELD]
     socket.min_value = 0
-    socket.max_value = 3
+    socket.max_value = 4
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_EFFECTOR_SEED,
+        "INPUT",
+        "NodeSocketInt",
+        parent=effector_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SEED]
+    socket.min_value = 0
     socket = _new_socket(
         interface,
         properties.SOCKET_EFFECTOR_ENABLED,
@@ -617,10 +636,17 @@ def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> 
     )
 
     _new_socket(interface, socket_set["object"], "INPUT", "NodeSocketObject")
+    socket = _new_socket(interface, socket_set["type"], "INPUT", "NodeSocketInt", parent=panel)
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["type"]]
+    socket.min_value = 0
+    socket.max_value = 1
     socket = _new_socket(interface, socket_set["field"], "INPUT", "NodeSocketInt", parent=panel)
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["field"]]
     socket.min_value = 0
-    socket.max_value = 3
+    socket.max_value = 4
+    socket = _new_socket(interface, socket_set["seed"], "INPUT", "NodeSocketInt", parent=panel)
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["seed"]]
+    socket.min_value = 0
     socket = _new_socket(interface, socket_set["enabled"], "INPUT", "NodeSocketBool", parent=panel)
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["enabled"]]
     socket = _new_socket(interface, socket_set["invert"], "INPUT", "NodeSocketBool", parent=panel)
@@ -1176,6 +1202,7 @@ def _build_plain_effector_points(
     is_cubic = _new_math_node(nodes, (x + 1220, y - 520), "COMPARE")
     is_cylinder = _new_math_node(nodes, (x + 1460, y - 520), "COMPARE")
     is_linear = _new_math_node(nodes, (x + 1700, y - 520), "COMPARE")
+    is_none = _new_math_node(nodes, (x + 1940, y - 520), "COMPARE")
     box_or_sphere_distance = _new_float_switch_node(nodes, (x + 1700, y - 220))
     volume_distance = _new_float_switch_node(nodes, (x + 1940, y - 220))
     field_distance = _new_float_switch_node(nodes, (x + 2180, y - 220))
@@ -1188,23 +1215,38 @@ def _build_plain_effector_points(
     falloff_weight = _new_math_node(nodes, (x + 980, y - 80), "DIVIDE")
     inverted_weight = _new_math_node(nodes, (x + 1220, y - 80), "SUBTRACT")
     inverse_switch = _new_float_switch_node(nodes, (x + 1460, y - 80))
+    none_weight = _new_float_switch_node(nodes, (x + 1580, y + 40))
     strength = _new_math_node(nodes, (x + 1700, y - 80), "MULTIPLY")
     enabled_weight = _new_float_switch_node(nodes, (x + 1940, y - 80))
     position_weight = _new_float_switch_node(nodes, (x + 2180, y + 80))
     rotation_weight = _new_float_switch_node(nodes, (x + 2180, y + 620))
     scale_weight = _new_float_switch_node(nodes, (x + 2180, y + 340))
+    is_random = _new_math_node(nodes, (x + 1940, y + 60), "COMPARE")
+    index = _new_node(nodes, "GeometryNodeInputIndex", (x + 980, y + 980))
 
     offset = _new_combine_xyz_node(nodes, (x + 980, y + 160))
+    negative_offset = _new_vector_math_node(nodes, (x + 1220, y + 160), "SCALE")
+    random_offset = _new_random_vector_node(nodes, (x + 1460, y + 160))
+    effector_offset = _new_vector_switch_node(nodes, (x + 2180, y + 160))
     weighted_offset = _new_vector_math_node(nodes, (x + 2420, y + 160), "SCALE")
     set_position = _new_node(nodes, "GeometryNodeSetPosition", (x + 2680, y + 120))
 
     desired_scale = _new_combine_xyz_node(nodes, (x + 980, y + 380))
+    negative_scale_variation = _new_vector_math_node(nodes, (x + 1220, y + 300), "SUBTRACT")
+    positive_scale_variation = _new_vector_math_node(nodes, (x + 1220, y + 420), "ADD")
+    min_scale_floor = _new_combine_xyz_node(nodes, (x + 1220, y + 560))
+    clamped_negative_scale = _new_vector_math_node(nodes, (x + 1460, y + 300), "MAXIMUM")
+    random_scale = _new_random_vector_node(nodes, (x + 1460, y + 380))
+    effector_scale = _new_vector_switch_node(nodes, (x + 1940, y + 420))
     one_scale = _new_combine_xyz_node(nodes, (x + 980, y + 520))
     scale_delta = _new_vector_math_node(nodes, (x + 1220, y + 420), "SUBTRACT")
     weighted_scale_delta = _new_vector_math_node(nodes, (x + 2420, y + 420), "SCALE")
     final_scale = _new_vector_math_node(nodes, (x + 2660, y + 420), "ADD")
 
     desired_rotation = _new_combine_xyz_node(nodes, (x + 980, y + 700))
+    negative_rotation = _new_vector_math_node(nodes, (x + 1220, y + 700), "SCALE")
+    random_rotation = _new_random_vector_node(nodes, (x + 1460, y + 700))
+    effector_rotation = _new_vector_switch_node(nodes, (x + 2180, y + 700))
     weighted_rotation = _new_vector_math_node(nodes, (x + 2420, y + 700), "SCALE")
 
     safe_falloff.inputs[1].default_value = 0.000001
@@ -1221,13 +1263,23 @@ def _build_plain_effector_points(
     is_cylinder.inputs[2].default_value = 0.001
     is_linear.inputs[1].default_value = 3.0
     is_linear.inputs[2].default_value = 0.001
+    is_none.inputs[1].default_value = 4.0
+    is_none.inputs[2].default_value = 0.001
+    is_random.inputs[1].default_value = 1.0
+    is_random.inputs[2].default_value = 0.001
     inverted_weight.inputs[0].default_value = 1.0
     falloff_range_factor.inputs[0].default_value = 1.0
     one_scale.inputs["X"].default_value = 1.0
     one_scale.inputs["Y"].default_value = 1.0
     one_scale.inputs["Z"].default_value = 1.0
+    min_scale_floor.inputs["X"].default_value = 0.001
+    min_scale_floor.inputs["Y"].default_value = 0.001
+    min_scale_floor.inputs["Z"].default_value = 0.001
+    negative_offset.inputs["Scale"].default_value = -1.0
+    negative_rotation.inputs["Scale"].default_value = -1.0
 
     _link(links, group_input, socket_set["object"], object_info, "Object")
+    _link(links, group_input, socket_set["type"], is_random, "Value")
     _link(links, position, "Position", distance, "Vector")
     links.new(object_info.outputs["Location"], distance.inputs[1])
     _link(links, position, "Position", local_offset, "Vector")
@@ -1262,6 +1314,7 @@ def _build_plain_effector_points(
     _link(links, group_input, socket_set["field"], is_cubic, "Value")
     _link(links, group_input, socket_set["field"], is_cylinder, "Value")
     _link(links, group_input, socket_set["field"], is_linear, "Value")
+    _link(links, group_input, socket_set["field"], is_none, "Value")
     _link(links, is_cubic, "Value", box_or_sphere_distance, "Switch")
     links.new(distance.outputs["Value"], box_or_sphere_distance.inputs["False"])
     _link(links, cubic_distance, "Value", box_or_sphere_distance, "True")
@@ -1290,7 +1343,10 @@ def _build_plain_effector_points(
     _link(links, group_input, socket_set["invert"], inverse_switch, "Switch")
     _link(links, falloff_weight, "Value", inverse_switch, "False")
     _link(links, inverted_weight, "Value", inverse_switch, "True")
-    _link(links, inverse_switch, "Output", strength, "Value")
+    _link(links, is_none, "Value", none_weight, "Switch")
+    _link(links, inverse_switch, "Output", none_weight, "False")
+    none_weight.inputs["True"].default_value = 1.0
+    _link(links, none_weight, "Output", strength, "Value")
     links.new(
         _socket(group_input.outputs, socket_set["strength"]),
         strength.inputs[1],
@@ -1307,7 +1363,15 @@ def _build_plain_effector_points(
     _link(links, group_input, socket_set["position_x"], offset, "X")
     _link(links, group_input, socket_set["position_y"], offset, "Y")
     _link(links, group_input, socket_set["position_z"], offset, "Z")
-    _link(links, offset, "Vector", weighted_offset, "Vector")
+    _link(links, offset, "Vector", negative_offset, "Vector")
+    links.new(negative_offset.outputs["Vector"], random_offset.inputs[0])
+    _link(links, offset, "Vector", random_offset, "Max")
+    _link(links, index, "Index", random_offset, "ID")
+    _link(links, group_input, socket_set["seed"], random_offset, "Seed")
+    _link(links, is_random, "Value", effector_offset, "Switch")
+    _link(links, offset, "Vector", effector_offset, "False")
+    links.new(random_offset.outputs[0], effector_offset.inputs["True"])
+    _link(links, effector_offset, "Output", weighted_offset, "Vector")
     _link(links, position_weight, "Output", weighted_offset, "Scale")
     _link(links, points_node, points_socket, set_position, "Geometry")
     _link(links, weighted_offset, "Vector", set_position, "Offset")
@@ -1315,7 +1379,20 @@ def _build_plain_effector_points(
     _link(links, group_input, socket_set["scale_x"], desired_scale, "X")
     _link(links, group_input, socket_set["scale_y"], desired_scale, "Y")
     _link(links, group_input, socket_set["scale_z"], desired_scale, "Z")
-    _link(links, desired_scale, "Vector", scale_delta, "Vector")
+    _link(links, one_scale, "Vector", negative_scale_variation, "Vector")
+    links.new(desired_scale.outputs["Vector"], negative_scale_variation.inputs[1])
+    _link(links, one_scale, "Vector", positive_scale_variation, "Vector")
+    links.new(desired_scale.outputs["Vector"], positive_scale_variation.inputs[1])
+    _link(links, negative_scale_variation, "Vector", clamped_negative_scale, "Vector")
+    links.new(min_scale_floor.outputs["Vector"], clamped_negative_scale.inputs[1])
+    _link(links, clamped_negative_scale, "Vector", random_scale, "Min")
+    _link(links, positive_scale_variation, "Vector", random_scale, "Max")
+    _link(links, index, "Index", random_scale, "ID")
+    _link(links, group_input, socket_set["seed"], random_scale, "Seed")
+    _link(links, is_random, "Value", effector_scale, "Switch")
+    _link(links, desired_scale, "Vector", effector_scale, "False")
+    links.new(random_scale.outputs[0], effector_scale.inputs["True"])
+    _link(links, effector_scale, "Output", scale_delta, "Vector")
     links.new(one_scale.outputs["Vector"], scale_delta.inputs[1])
     _link(links, scale_delta, "Vector", weighted_scale_delta, "Vector")
     _link(links, scale_weight, "Output", weighted_scale_delta, "Scale")
@@ -1325,7 +1402,15 @@ def _build_plain_effector_points(
     _link(links, group_input, socket_set["rotation_x"], desired_rotation, "X")
     _link(links, group_input, socket_set["rotation_y"], desired_rotation, "Y")
     _link(links, group_input, socket_set["rotation_z"], desired_rotation, "Z")
-    _link(links, desired_rotation, "Vector", weighted_rotation, "Vector")
+    _link(links, desired_rotation, "Vector", negative_rotation, "Vector")
+    links.new(negative_rotation.outputs["Vector"], random_rotation.inputs[0])
+    _link(links, desired_rotation, "Vector", random_rotation, "Max")
+    _link(links, index, "Index", random_rotation, "ID")
+    _link(links, group_input, socket_set["seed"], random_rotation, "Seed")
+    _link(links, is_random, "Value", effector_rotation, "Switch")
+    _link(links, desired_rotation, "Vector", effector_rotation, "False")
+    links.new(random_rotation.outputs[0], effector_rotation.inputs["True"])
+    _link(links, effector_rotation, "Output", weighted_rotation, "Vector")
     _link(links, rotation_weight, "Output", weighted_rotation, "Scale")
 
     return set_position, "Geometry", weighted_rotation, "Vector", final_scale, "Vector"
@@ -1636,6 +1721,18 @@ def _new_rotation_switch_node(nodes, location: tuple[int, int]):
 def _new_float_switch_node(nodes, location: tuple[int, int]):
     node = _new_node(nodes, "GeometryNodeSwitch", location)
     node.input_type = "FLOAT"
+    return node
+
+
+def _new_vector_switch_node(nodes, location: tuple[int, int]):
+    node = _new_node(nodes, "GeometryNodeSwitch", location)
+    node.input_type = "VECTOR"
+    return node
+
+
+def _new_random_vector_node(nodes, location: tuple[int, int]):
+    node = _new_node(nodes, "FunctionNodeRandomValue", location)
+    node.data_type = "FLOAT_VECTOR"
     return node
 
 
