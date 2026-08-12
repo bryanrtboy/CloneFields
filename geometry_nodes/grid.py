@@ -63,6 +63,7 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         parent=linear_panel,
     )
     radial_panel = _new_panel(interface, "Radial", default_closed=True)
+    object_panel = _new_panel(interface, "Object", default_closed=True)
     effector_panel = _new_panel(interface, "Basic Effector", default_closed=True)
     effector_position_panel = _new_panel(
         interface,
@@ -321,6 +322,8 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     socket.default_value = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_DISTRIBUTION_MODE
     ]
+    socket.min_value = 0
+    socket.max_value = 3
     socket = _new_socket(
         interface,
         properties.SOCKET_SPACING_MODE,
@@ -331,8 +334,6 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_SPACING_MODE]
     socket.min_value = 0
     socket.max_value = 1
-    socket.min_value = 0
-    socket.max_value = 2
 
     for name in (
         properties.SOCKET_COUNT_X,
@@ -452,6 +453,49 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     socket.default_value = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_RADIAL_ALIGN
     ]
+
+    _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_DISTRIBUTION_OBJECT,
+        "INPUT",
+        "NodeSocketObject",
+        parent=object_panel,
+    )
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_DISTRIBUTION_MODE,
+        "INPUT",
+        "NodeSocketInt",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_DISTRIBUTION_MODE
+    ]
+    socket.min_value = 0
+    socket.max_value = 2
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_SPLINE_COUNT,
+        "INPUT",
+        "NodeSocketInt",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SPLINE_COUNT
+    ]
+    socket.min_value = 1
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_ALIGNMENT,
+        "INPUT",
+        "NodeSocketInt",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_ALIGNMENT
+    ]
+    socket.min_value = 0
+    socket.max_value = 3
 
     for name in (
         properties.SOCKET_SOURCE_POSITION_X,
@@ -596,6 +640,15 @@ def _create_nodes(
         group_input=group_input,
         source_count=properties.SOCKET_SOURCE_COUNT,
     )
+    object_node, object_socket = _build_object_distribution(
+        nodes,
+        links,
+        source_node=source_node,
+        source_socket=source_socket,
+        origin=(x_offset, -1800),
+        group_input=group_input,
+        source_count=properties.SOCKET_SOURCE_COUNT,
+    )
     output_node, output_socket = _build_distribution_switch(
         nodes,
         links,
@@ -603,6 +656,7 @@ def _create_nodes(
         grid=(grid_node, grid_socket),
         linear=(linear_node, linear_socket),
         radial=(radial_node, radial_socket),
+        object_distribution=(object_node, object_socket),
         location=(x_offset + 1560, -320),
     )
     realize_output = _new_node(
@@ -1098,6 +1152,122 @@ def _link_radial_axis_components(
     else:
         links.new(first_component.outputs["Value"], position.inputs["X"])
         links.new(second_component.outputs["Value"], position.inputs["Y"])
+
+
+def _build_object_distribution(
+    nodes,
+    links,
+    *,
+    source_node,
+    source_socket: str,
+    origin: tuple[int, int],
+    group_input,
+    source_count,
+) -> tuple:
+    x, y = origin
+    object_info = _new_node(nodes, "GeometryNodeObjectInfo", (x, y))
+    object_info.transform_space = "RELATIVE"
+    normal = _new_node(nodes, "GeometryNodeInputNormal", (x + 40, y + 300))
+    capture_vertex_normal = _new_capture_vector_node(
+        nodes,
+        (x + 260, y + 260),
+        "POINT",
+        "Surface Normal",
+    )
+    capture_face_normal = _new_capture_vector_node(
+        nodes,
+        (x + 260, y + 40),
+        "FACE",
+        "Surface Normal",
+    )
+    mesh_vertices = _new_mesh_to_points_node(nodes, (x + 560, y + 260), "VERTICES")
+    mesh_faces = _new_mesh_to_points_node(nodes, (x + 560, y + 40), "FACES")
+    curve_points = _new_node(nodes, "GeometryNodeCurveToPoints", (x + 260, y - 300))
+    points_switch = _new_geometry_index_switch_node(nodes, (x + 900, y - 40), 3)
+    normal_switch = _new_vector_index_switch_node(nodes, (x + 900, y + 260), 3)
+    position = _new_node(nodes, "GeometryNodeInputPosition", (x + 900, y + 440))
+    center_direction = _new_vector_math_node(nodes, (x + 1120, y + 440), "SUBTRACT")
+    capture_direction = _new_capture_vector_node(nodes, (x + 1180, y + 160), "POINT", "Center Direction")
+    normal_align_euler = _new_node(nodes, "FunctionNodeAlignEulerToVector", (x + 1420, y + 500))
+    center_align_euler = _new_node(nodes, "FunctionNodeAlignEulerToVector", (x + 1420, y + 340))
+    spline_align_euler = _new_node(nodes, "FunctionNodeAlignEulerToVector", (x + 1420, y + 180))
+    normal_align_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 1660, y + 500))
+    center_align_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 1660, y + 340))
+    spline_align_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 1660, y + 180))
+    alignment_rotation = _new_rotation_index_switch_node(nodes, (x + 1840, y + 300), 4)
+    zero_rotation_vector = _new_combine_xyz_node(nodes, (x + 1420, y + 20))
+    zero_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 1660, y + 20))
+    instance = _new_node(nodes, "GeometryNodeInstanceOnPoints", (x + 2140, y - 40))
+
+    curve_points.mode = "COUNT"
+    normal_align_euler.axis = "Z"
+    center_align_euler.axis = "Z"
+    spline_align_euler.axis = "X"
+    normal_align_euler.inputs["Factor"].default_value = 1.0
+    center_align_euler.inputs["Factor"].default_value = 1.0
+    spline_align_euler.inputs["Factor"].default_value = 1.0
+
+    _link(links, group_input, properties.SOCKET_OBJECT_DISTRIBUTION_OBJECT, object_info, "Object")
+    _link(links, object_info, "Geometry", capture_vertex_normal, "Geometry")
+    _link(links, normal, "Normal", capture_vertex_normal, "Surface Normal")
+    _link(links, object_info, "Geometry", capture_face_normal, "Geometry")
+    _link(links, normal, "Normal", capture_face_normal, "Surface Normal")
+    _link(links, capture_vertex_normal, "Geometry", mesh_vertices, "Mesh")
+    _link(links, capture_face_normal, "Geometry", mesh_faces, "Mesh")
+    _link(links, object_info, "Geometry", curve_points, "Curve")
+    _link(links, group_input, properties.SOCKET_OBJECT_SPLINE_COUNT, curve_points, "Count")
+    _link(links, group_input, properties.SOCKET_OBJECT_DISTRIBUTION_MODE, points_switch, "Index")
+    _link(links, mesh_vertices, "Points", points_switch, "0")
+    _link(links, mesh_faces, "Points", points_switch, "1")
+    _link(links, curve_points, "Points", points_switch, "2")
+
+    _link(links, group_input, properties.SOCKET_OBJECT_DISTRIBUTION_MODE, normal_switch, "Index")
+    _link(links, capture_vertex_normal, "Surface Normal", normal_switch, "0")
+    _link(links, capture_face_normal, "Surface Normal", normal_switch, "1")
+
+    links.new(object_info.outputs["Location"], center_direction.inputs["Vector"])
+    links.new(position.outputs["Position"], center_direction.inputs[1])
+    _link(links, points_switch, "Output", capture_direction, "Geometry")
+    _link(links, center_direction, "Vector", capture_direction, "Center Direction")
+    _link(links, normal_switch, "Output", normal_align_euler, "Vector")
+    _link(links, capture_direction, "Center Direction", center_align_euler, "Vector")
+    _link(links, curve_points, "Tangent", spline_align_euler, "Vector")
+    _link(links, normal_align_euler, "Rotation", normal_align_rotation, "Euler")
+    _link(links, center_align_euler, "Rotation", center_align_rotation, "Euler")
+    _link(links, spline_align_euler, "Rotation", spline_align_rotation, "Euler")
+    _link(links, zero_rotation_vector, "Vector", zero_rotation, "Euler")
+    _link(links, group_input, properties.SOCKET_OBJECT_ALIGNMENT, alignment_rotation, "Index")
+    _link(links, zero_rotation, "Rotation", alignment_rotation, "0")
+    _link(links, normal_align_rotation, "Rotation", alignment_rotation, "1")
+    _link(links, center_align_rotation, "Rotation", alignment_rotation, "2")
+    _link(links, spline_align_rotation, "Rotation", alignment_rotation, "3")
+
+    points_node, points_socket, effector_rotation_node, effector_rotation_socket, scale_node, scale_socket = (
+        _build_all_plain_effector_points(
+            nodes,
+            links,
+            group_input,
+            capture_direction,
+            "Geometry",
+            (x + 1340, y + 420),
+        )
+    )
+    combined_rotation = _new_node(nodes, "FunctionNodeRotateRotation", (x + 1840, y + 120))
+    _link(links, alignment_rotation, "Output", combined_rotation, "Rotation")
+    _link(links, effector_rotation_node, effector_rotation_socket, combined_rotation, "Rotate By")
+    _link(links, points_node, points_socket, instance, "Points")
+    _link(links, source_node, source_socket, instance, "Instance")
+    _link(links, combined_rotation, "Rotation", instance, "Rotation")
+    _link(links, scale_node, scale_socket, instance, "Scale")
+    _configure_instance_picker(
+        nodes,
+        links,
+        group_input,
+        instance,
+        source_count,
+        (x + 1840, y - 260),
+    )
+    return instance, "Instances"
 
 
 def _build_all_plain_effector_points(
@@ -1610,14 +1780,16 @@ def _build_distribution_switch(
     grid: tuple,
     linear: tuple,
     radial: tuple,
+    object_distribution: tuple,
     location: tuple[int, int],
 ) -> tuple:
-    switch = _new_geometry_index_switch_node(nodes, location, 3)
+    switch = _new_geometry_index_switch_node(nodes, location, 4)
 
     _link(links, group_input, properties.SOCKET_DISTRIBUTION_MODE, switch, "Index")
     _link(links, grid[0], grid[1], switch, "0")
     _link(links, linear[0], linear[1], switch, "1")
     _link(links, radial[0], radial[1], switch, "2")
+    _link(links, object_distribution[0], object_distribution[1], switch, "3")
     return switch, "Output"
 
 
@@ -1748,12 +1920,54 @@ def _new_geometry_index_switch_node(
     return node
 
 
+def _new_rotation_index_switch_node(
+    nodes,
+    location: tuple[int, int],
+    item_count: int,
+):
+    node = _new_node(nodes, "GeometryNodeIndexSwitch", location)
+    node.data_type = "ROTATION"
+    while len(node.index_switch_items) < item_count:
+        node.index_switch_items.new()
+    return node
+
+
+def _new_vector_index_switch_node(
+    nodes,
+    location: tuple[int, int],
+    item_count: int,
+):
+    node = _new_node(nodes, "GeometryNodeIndexSwitch", location)
+    node.data_type = "VECTOR"
+    while len(node.index_switch_items) < item_count:
+        node.index_switch_items.new()
+    return node
+
+
 def _new_mesh_line_node(nodes, location: tuple[int, int]):
     node = _new_node(nodes, "GeometryNodeMeshLine", location)
     if hasattr(node, "mode"):
         node.mode = "OFFSET"
     if hasattr(node, "count_mode"):
         node.count_mode = "TOTAL"
+    return node
+
+
+def _new_mesh_to_points_node(nodes, location: tuple[int, int], mode: str):
+    node = _new_node(nodes, "GeometryNodeMeshToPoints", location)
+    node.mode = mode
+    return node
+
+
+def _new_capture_vector_node(
+    nodes,
+    location: tuple[int, int],
+    domain: str,
+    name: str = "Normal",
+):
+    node = _new_node(nodes, "GeometryNodeCaptureAttribute", location)
+    node.domain = domain
+    node.capture_items.new("VECTOR", name)
     return node
 
 

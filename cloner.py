@@ -243,6 +243,9 @@ def _set_default_distribution_inputs(modifier: bpy.types.NodesModifier) -> None:
         properties.SOCKET_RADIAL_ARC,
         properties.SOCKET_RADIAL_AXIS,
         properties.SOCKET_RADIAL_ALIGN,
+        properties.SOCKET_OBJECT_DISTRIBUTION_MODE,
+        properties.SOCKET_OBJECT_SPLINE_COUNT,
+        properties.SOCKET_OBJECT_ALIGNMENT,
     ):
         modifier_inputs.set_modifier_input(
             modifier,

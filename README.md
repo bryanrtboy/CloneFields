@@ -35,10 +35,11 @@ The Cloner modifier currently supports:
 - Grid distribution
 - Linear distribution
 - Radial distribution
+- Object distribution
 
 The Modifier tab shows a Clone Fields panel with named mode controls for Grid,
-Linear, and Radial. Only the controls for the selected distribution mode are
-shown.
+Linear, Radial, and Object. Only the controls for the selected distribution mode
+are shown.
 
 Grid and Radial distributions are centered on the Cloner origin. Selected
 Cloners draw lightweight viewport guides for grid bounds or radial radius.
@@ -51,6 +52,13 @@ the last clone, so changing Count redistributes clones inside the same span.
 360-degree arcs use the clone count as the angular step divisor, so a count of
 8 produces 8 evenly spaced clones without an overlapping endpoint. `Align`
 makes the source transform follow the radial step.
+
+Object distribution places clones on a chosen mesh or curve object. Mesh objects
+support Vertices and Polygon Centers. Curve/spline objects use Spline Points
+with a Count control. Align points mesh clone local Z toward the distribution
+object center, and spline clone local X along the spline tangent. The
+distribution object is not hidden automatically, so you can leave it visible for
+modeling context or hide it manually.
 
 To use multiple sources, parent additional source objects directly under the
 Cloner. Clone Fields alternates through the child sources by clone index. Empty

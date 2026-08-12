@@ -338,6 +338,11 @@ def _current_grid_values(modifier: bpy.types.NodesModifier) -> dict:
             properties.SOCKET_SOURCE_COLLECTION,
         }:
             continue
+        if socket_name == properties.SOCKET_OBJECT_DISTRIBUTION_OBJECT:
+            value = modifier_inputs.get_modifier_input(modifier, socket_name)
+            if value is not None:
+                values[socket_name] = value
+            continue
         if socket_name in properties.EFFECTOR_OBJECT_SOCKET_NAMES:
             value = modifier_inputs.get_modifier_input(modifier, socket_name)
             if value is not None:
@@ -357,13 +362,35 @@ def _remove_unused_node_group(node_group: bpy.types.GeometryNodeTree | None) -> 
         bpy.data.node_groups.remove(node_group)
 
 
+def _upgrade_stale_cloner_node_groups() -> None:
+    if not hasattr(bpy.data, "objects"):
+        return 0.1
+
+    for cloner in bpy.data.objects:
+        modifier = modifier_inputs.get_cloner_modifier(cloner)
+        if modifier is None or modifier.node_group is None:
+            continue
+        if (
+            modifier.node_group.get(properties.PROP_NODE_GROUP_BUILD_VERSION)
+            == properties.GRID_NODE_GROUP_BUILD_VERSION
+        ):
+            continue
+        _configure_modifier_for_source(modifier)
+        _sync_source_collection(cloner, modifier)
+        sync_cloner_source_visibility(cloner)
+    return None
+
+
 def register() -> None:
     unregister()
     sync_all_source_visibility.__name__ = HANDLER_NAME
     bpy.app.handlers.depsgraph_update_post.append(sync_all_source_visibility)
+    bpy.app.timers.register(_upgrade_stale_cloner_node_groups, first_interval=0.0)
 
 
 def unregister() -> None:
+    if bpy.app.timers.is_registered(_upgrade_stale_cloner_node_groups):
+        bpy.app.timers.unregister(_upgrade_stale_cloner_node_groups)
     handlers = bpy.app.handlers.depsgraph_update_post
     for handler in list(handlers):
         if getattr(handler, "__name__", "") == HANDLER_NAME:

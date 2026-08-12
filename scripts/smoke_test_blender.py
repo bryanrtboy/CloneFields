@@ -77,6 +77,27 @@ def _evaluated_vertices(obj: bpy.types.Object) -> list[tuple[float, float, float
         evaluated.to_mesh_clear()
 
 
+def _max_xy_radius(vertices: list[tuple[float, float, float]]) -> float:
+    return max((vertex[0] ** 2 + vertex[1] ** 2) ** 0.5 for vertex in vertices)
+
+
+def _max_z_range_near_xy(
+    vertices: list[tuple[float, float, float]],
+    *,
+    x: float,
+    y: float,
+    radius: float,
+) -> float:
+    nearby = [
+        vertex[2]
+        for vertex in vertices
+        if ((vertex[0] - x) ** 2 + (vertex[1] - y) ** 2) ** 0.5 < radius
+    ]
+    if not nearby:
+        return 0.0
+    return max(nearby) - min(nearby)
+
+
 def _has_vertex_near(
     vertices: list[tuple[float, float, float]],
     expected: tuple[float, float, float],
@@ -136,6 +157,7 @@ def main() -> None:
     addon.register()
     inputs = importlib.import_module(f"{REPO_ROOT.name}.modifier_inputs")
     props = importlib.import_module(f"{REPO_ROOT.name}.properties")
+    cloner_module = importlib.import_module(f"{REPO_ROOT.name}.cloner")
     eff = importlib.import_module(f"{REPO_ROOT.name}.effectors")
     sources = importlib.import_module(f"{REPO_ROOT.name}.source_management")
     guides = importlib.import_module(f"{REPO_ROOT.name}.viewport_guides")
@@ -188,6 +210,7 @@ def main() -> None:
             "Linear",
             "Direction",
             "Radial",
+            "Object",
             "Basic Effector",
             "Effector Position",
             "Effector Rotation",
@@ -254,6 +277,22 @@ def main() -> None:
             modifier,
             props.SOCKET_RADIAL_AXIS,
         )
+        object_distribution_object_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_DISTRIBUTION_OBJECT,
+        )
+        object_distribution_mode_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_DISTRIBUTION_MODE,
+        )
+        object_spline_count_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_SPLINE_COUNT,
+        )
+        object_alignment_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_ALIGNMENT,
+        )
         rotation_z_id = inputs.get_modifier_input_identifier(
             modifier,
             props.SOCKET_SOURCE_ROTATION_Z,
@@ -281,6 +320,10 @@ def main() -> None:
         assert radial_radius_id is not None
         assert radial_arc_id is not None
         assert radial_axis_id is not None
+        assert object_distribution_object_id is not None
+        assert object_distribution_mode_id is not None
+        assert object_spline_count_id is not None
+        assert object_alignment_id is not None
         assert rotation_z_id is not None
         assert scale_x_id is not None
         assert position_y_id is not None
@@ -361,6 +404,179 @@ def main() -> None:
         radial_bounds = _evaluated_bounds_size(cloner)
         assert radial_bounds[0] > linear_bounds[0]
         assert radial_bounds[1] > linear_bounds[0]
+
+        distribution_mesh = bpy.data.meshes.new("Distribution Mesh")
+        distribution_mesh.from_pydata(
+            [
+                (-1.0, -1.0, 0.0),
+                (1.0, -1.0, 0.0),
+                (1.0, 1.0, 0.0),
+                (-1.0, 1.0, 0.0),
+            ],
+            [],
+            [(0, 1, 2, 3)],
+        )
+        distribution_mesh.update()
+        distribution_object = bpy.data.objects.new("Distribution Object", distribution_mesh)
+        bpy.context.collection.objects.link(distribution_object)
+        cloner.clone_fields_cloner.distribution_mode = "OBJECT"
+        cloner.clone_fields_cloner.object_distribution_object = distribution_object
+        cloner.clone_fields_cloner.object_distribution_mode = "VERTICES"
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[mode_id] == 3
+        assert modifier[object_distribution_object_id] == distribution_object
+        assert modifier[object_distribution_mode_id] == 0
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 4
+
+        cloner.clone_fields_cloner.object_distribution_mode = "POLYGONS"
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[object_distribution_mode_id] == 1
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices)
+
+        tilted_mesh = bpy.data.meshes.new("Tilted Distribution Mesh")
+        tilted_mesh.from_pydata(
+            [
+                (-1.0, 1.0, 0.0),
+                (1.0, 1.0, 0.0),
+                (1.0, 3.0, 1.25),
+                (-1.0, 3.0, 1.25),
+            ],
+            [],
+            [(0, 1, 2, 3)],
+        )
+        tilted_mesh.update()
+        tilted_object = bpy.data.objects.new("Tilted Distribution Object", tilted_mesh)
+        bpy.context.collection.objects.link(tilted_object)
+        cloner.clone_fields_cloner.object_distribution_object = tilted_object
+        cloner.clone_fields_cloner.object_distribution_mode = "POLYGONS"
+        cloner.clone_fields_cloner.source_position_z = 0.0
+        cloner.clone_fields_cloner.object_alignment = "NONE"
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        unaligned_tilt_size = _evaluated_bounds_size(cloner)
+        cloner.clone_fields_cloner.object_alignment = "NORMALS"
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        aligned_tilt_size = _evaluated_bounds_size(cloner)
+        assert max(
+            abs(aligned_tilt_size[axis] - unaligned_tilt_size[axis])
+            for axis in range(3)
+        ) > 0.1
+
+        align_source_mesh = bpy.data.meshes.new("Object Align Source Mesh")
+        align_source_mesh.from_pydata(
+            [
+                (-0.1, -0.1, 0.0),
+                (0.1, -0.1, 0.0),
+                (0.1, 0.1, 0.0),
+                (-0.1, 0.1, 0.0),
+                (-0.1, -0.1, 2.0),
+                (0.1, -0.1, 2.0),
+                (0.1, 0.1, 2.0),
+                (-0.1, 0.1, 2.0),
+            ],
+            [],
+            [
+                (0, 1, 2, 3),
+                (4, 7, 6, 5),
+                (0, 4, 5, 1),
+                (1, 5, 6, 2),
+                (2, 6, 7, 3),
+                (3, 7, 4, 0),
+            ],
+        )
+        align_source_mesh.update()
+        align_source = bpy.data.objects.new("Object Align Source", align_source_mesh)
+        bpy.context.collection.objects.link(align_source)
+
+        bpy.ops.mesh.primitive_uv_sphere_add(
+            segments=16,
+            ring_count=8,
+            radius=3.0,
+            location=(2.0, -1.0, 0.5),
+        )
+        sphere_object = bpy.context.object
+        sphere_object.scale = (1.2, 0.8, 1.1)
+        align_cloner = cloner_module.create_grid_cloner(
+            bpy.context,
+            source_object=align_source,
+            count_x=1,
+            count_y=1,
+            count_z=1,
+            spacing_x=1.0,
+            spacing_y=1.0,
+            spacing_z=1.0,
+        )
+        align_modifier = align_cloner.modifiers["Cloner"]
+        align_cloner.clone_fields_cloner.distribution_mode = "OBJECT"
+        align_cloner.clone_fields_cloner.object_distribution_object = sphere_object
+        align_cloner.clone_fields_cloner.object_distribution_mode = "POLYGONS"
+        align_cloner.clone_fields_cloner.object_alignment = "NONE"
+        align_cloner.update_tag()
+        align_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        unaligned_vertices = _evaluated_vertices(align_cloner)
+        expected_vertex_count = len(sphere_object.data.polygons) * len(align_source.data.vertices)
+        assert len(unaligned_vertices) == expected_vertex_count
+
+        align_cloner.clone_fields_cloner.object_alignment = "NORMALS"
+        align_cloner.update_tag()
+        align_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        normal_vertices = _evaluated_vertices(align_cloner)
+        assert len(normal_vertices) == expected_vertex_count
+        normal_radius = _max_xy_radius(normal_vertices)
+
+        align_cloner.clone_fields_cloner.object_alignment = "CENTER"
+        align_cloner.update_tag()
+        align_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        center_vertices = _evaluated_vertices(align_cloner)
+        assert len(center_vertices) == expected_vertex_count
+        center_radius = _max_xy_radius(center_vertices)
+        assert normal_radius > center_radius + 1.0
+
+        align_cloner.clone_fields_cloner.object_distribution_mode = "VERTICES"
+        align_cloner.clone_fields_cloner.object_alignment = "NORMALS"
+        align_cloner.update_tag()
+        align_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        vertex_normal_vertices = _evaluated_vertices(align_cloner)
+        expected_vertex_count = len(sphere_object.data.vertices) * len(align_source.data.vertices)
+        assert len(vertex_normal_vertices) == expected_vertex_count
+
+        align_cloner.clone_fields_cloner.object_alignment = "CENTER"
+        align_cloner.update_tag()
+        align_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        vertex_center_vertices = _evaluated_vertices(align_cloner)
+        assert len(vertex_center_vertices) == expected_vertex_count
+        assert _max_xy_radius(vertex_normal_vertices) > _max_xy_radius(vertex_center_vertices) + 1.0
+
+        distribution_curve = bpy.data.curves.new("Distribution Curve", "CURVE")
+        distribution_curve.dimensions = "3D"
+        spline = distribution_curve.splines.new("POLY")
+        spline.points.add(1)
+        spline.points[0].co = (-2.0, 0.0, 0.0, 1.0)
+        spline.points[1].co = (2.0, 0.0, 0.0, 1.0)
+        curve_object = bpy.data.objects.new("Distribution Spline", distribution_curve)
+        bpy.context.collection.objects.link(curve_object)
+        cloner.clone_fields_cloner.object_distribution_object = curve_object
+        cloner.clone_fields_cloner.object_distribution_mode = "SPLINE"
+        cloner.clone_fields_cloner.object_alignment = "TANGENT"
+        cloner.clone_fields_cloner.object_spline_count = 5
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[object_distribution_mode_id] == 2
+        assert modifier[object_spline_count_id] == 5
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 5
 
         cloner.clone_fields_cloner.distribution_mode = "GRID"
         cloner.update_tag()

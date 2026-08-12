@@ -32,6 +32,8 @@ class CLONE_FIELDS_PT_cloner_modifier(bpy.types.Panel):
             _draw_linear(layout, settings)
         elif settings.distribution_mode == "RADIAL":
             _draw_radial(layout, settings)
+        elif settings.distribution_mode == "OBJECT":
+            _draw_object(layout, settings)
 
         _draw_effectors(layout, settings)
         _draw_source_transform(layout, settings)
@@ -65,6 +67,23 @@ def _draw_radial(layout, settings) -> None:
     layout.prop(settings, "radial_arc")
     layout.prop(settings, "radial_axis")
     layout.prop(settings, "radial_align")
+
+
+def _draw_object(layout, settings) -> None:
+    layout.prop(settings, "object_distribution_object")
+    layout.prop(settings, "object_distribution_mode")
+    if settings.object_distribution_mode == "SPLINE":
+        layout.prop(settings, "object_spline_count", text="Count")
+        row = layout.row(align=True)
+        row.label(text="Alignment")
+        row.prop_enum(settings, "object_alignment", "NONE", text="None")
+        row.prop_enum(settings, "object_alignment", "TANGENT", text="Tangent")
+    else:
+        row = layout.row(align=True)
+        row.label(text="Alignment")
+        row.prop_enum(settings, "object_alignment", "NONE", text="None")
+        row.prop_enum(settings, "object_alignment", "NORMALS", text="Normals")
+        row.prop_enum(settings, "object_alignment", "CENTER", text="Center")
 
 
 def _draw_effectors(layout, settings) -> None:

@@ -10,11 +10,35 @@ DISTRIBUTION_MODE_ITEMS = (
     ("GRID", "Grid", "Grid distribution"),
     ("LINEAR", "Linear", "Linear distribution"),
     ("RADIAL", "Radial", "Radial distribution"),
+    ("OBJECT", "Object", "Place clones on another object"),
 )
 DISTRIBUTION_MODE_VALUES = {
     "GRID": 0,
     "LINEAR": 1,
     "RADIAL": 2,
+    "OBJECT": 3,
+}
+OBJECT_DISTRIBUTION_MODE_ITEMS = (
+    ("VERTICES", "Vertices", "Place clones on mesh vertices"),
+    ("POLYGONS", "Polygon Centers", "Place clones on mesh polygon centers"),
+    ("SPLINE", "Spline Points", "Place clones along a curve or spline"),
+)
+OBJECT_DISTRIBUTION_MODE_VALUES = {
+    "VERTICES": 0,
+    "POLYGONS": 1,
+    "SPLINE": 2,
+}
+OBJECT_ALIGNMENT_ITEMS = (
+    ("NONE", "None", "Keep the source object's rotation"),
+    ("NORMALS", "Normals", "Point the source object's local Z axis along the surface normal"),
+    ("CENTER", "Center", "Point the source object's local Z axis toward the distribution object's center"),
+    ("TANGENT", "Tangent", "Point the source object's local X axis along the spline"),
+)
+OBJECT_ALIGNMENT_VALUES = {
+    "NONE": 0,
+    "NORMALS": 1,
+    "CENTER": 2,
+    "TANGENT": 3,
 }
 RADIAL_AXIS_ITEMS = (
     ("Z", "Z", "Rotate around Z"),
@@ -368,6 +392,47 @@ def _sync_radial_align(self, context) -> None:
         self,
         properties.SOCKET_RADIAL_ALIGN,
         self.radial_align,
+    )
+
+
+def _sync_object_distribution_object(self, context) -> None:
+    distribution_object = self.object_distribution_object
+    if distribution_object is not None and distribution_object == self.id_data:
+        self.object_distribution_object = None
+        distribution_object = None
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_DISTRIBUTION_OBJECT,
+        distribution_object,
+    )
+
+
+def _sync_object_distribution_mode(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_DISTRIBUTION_MODE,
+        OBJECT_DISTRIBUTION_MODE_VALUES[self.object_distribution_mode],
+    )
+    if self.object_distribution_mode == "SPLINE":
+        if self.object_alignment not in {"NONE", "TANGENT"}:
+            self.object_alignment = "TANGENT"
+    elif self.object_alignment not in {"NONE", "NORMALS", "CENTER"}:
+        self.object_alignment = "NORMALS"
+
+
+def _sync_object_spline_count(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SPLINE_COUNT,
+        self.object_spline_count,
+    )
+
+
+def _sync_object_alignment(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_ALIGNMENT,
+        OBJECT_ALIGNMENT_VALUES[self.object_alignment],
     )
 
 
@@ -1090,6 +1155,30 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         name=properties.SOCKET_RADIAL_ALIGN,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_RADIAL_ALIGN],
         update=_sync_radial_align,
+    )
+    object_distribution_object: PointerProperty(
+        name=properties.SOCKET_OBJECT_DISTRIBUTION_OBJECT,
+        description="Mesh or curve object to place clones on",
+        type=bpy.types.Object,
+        update=_sync_object_distribution_object,
+    )
+    object_distribution_mode: EnumProperty(
+        name="Placement",
+        items=OBJECT_DISTRIBUTION_MODE_ITEMS,
+        default="VERTICES",
+        update=_sync_object_distribution_mode,
+    )
+    object_spline_count: IntProperty(
+        name=properties.SOCKET_OBJECT_SPLINE_COUNT,
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_SPLINE_COUNT],
+        min=1,
+        update=_sync_object_spline_count,
+    )
+    object_alignment: EnumProperty(
+        name="Alignment",
+        items=OBJECT_ALIGNMENT_ITEMS,
+        default="NORMALS",
+        update=_sync_object_alignment,
     )
     source_position_x: FloatProperty(
         name=properties.SOCKET_SOURCE_POSITION_X,
