@@ -101,6 +101,22 @@ def set_modifier_input(
         tag_modifier_owner(modifier)
 
 
+def set_modifier_inputs(modifier: bpy.types.NodesModifier, values: dict[str, object]) -> None:
+    if modifier.node_group is None:
+        return
+    identifiers = {
+        item.name: item.identifier
+        for item in modifier.node_group.interface.items_tree
+        if getattr(item, "item_type", None) == "SOCKET"
+        and getattr(item, "in_out", None) == "INPUT"
+    }
+    for socket_name, value in values.items():
+        identifier = identifiers.get(socket_name)
+        if identifier is not None:
+            modifier[identifier] = value
+    tag_modifier_owner(modifier)
+
+
 def tag_modifier_owner(modifier: bpy.types.NodesModifier) -> None:
     owner = getattr(modifier, "id_data", None)
     if owner is not None:
@@ -108,8 +124,6 @@ def tag_modifier_owner(modifier: bpy.types.NodesModifier) -> None:
         data = getattr(owner, "data", None)
         if data is not None:
             data.update_tag()
-    if modifier.node_group is not None:
-        modifier.node_group.update_tag()
 
 
 def get_modifier_input(

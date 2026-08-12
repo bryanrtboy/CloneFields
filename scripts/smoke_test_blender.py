@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
+from mathutils import Euler, Vector
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -171,7 +171,6 @@ def main() -> None:
 
         result = bpy.ops.clone_fields.add_cloner(
             "EXEC_DEFAULT",
-            source_object_name=source.name,
             count_x=2,
             count_y=3,
             count_z=2,
@@ -228,7 +227,16 @@ def main() -> None:
                 and item.name != props.SOCKET_GEOMETRY
             ):
                 assert item.hide_in_modifier
-        assert len(modifier.node_group.nodes) >= 12
+        internal_group_names = {
+            node.node_tree.name
+            for node in modifier.node_group.nodes
+            if node.bl_idname == "GeometryNodeGroup" and node.node_tree is not None
+        }
+        assert props.SOURCE_TRANSFORM_NODE_GROUP_NAME in internal_group_names
+        assert props.GRID_DISTRIBUTION_NODE_GROUP_NAME in internal_group_names
+        assert props.LINEAR_DISTRIBUTION_NODE_GROUP_NAME in internal_group_names
+        assert props.RADIAL_DISTRIBUTION_NODE_GROUP_NAME in internal_group_names
+        assert props.OBJECT_DISTRIBUTION_NODE_GROUP_NAME in internal_group_names
         assert cloner.clone_fields_cloner.distribution_mode == "GRID"
 
         mode_id = inputs.get_modifier_input_identifier(
@@ -1250,15 +1258,36 @@ def main() -> None:
         )
         rotation_stack_effector_settings.use_position = False
         rotation_stack_effector_settings.use_rotation = True
-        rotation_stack_effector_settings.rotation_z = 1.5707963267948966
+        rotation_stack_effector_settings.rotation_y = math.radians(360.0)
+        rotation_stack_effector_settings.rotation_z = math.radians(7200.0)
+        assert math.isclose(
+            rotation_stack_effector_settings.rotation_z,
+            math.radians(7200.0),
+            abs_tol=0.0001,
+        )
         rotation_stack_effector_settings.radius = 10.0
         rotation_stack_effector_settings.falloff = 100
         rotation_stack_modifier = rotation_stack_cloner.modifiers["Cloner"]
-        rotation_stack_cloner.update_tag()
-        rotation_stack_modifier.node_group.update_tag()
-        bpy.context.view_layer.update()
-        rotation_stack_vertices = _evaluated_vertices(rotation_stack_cloner)
-        assert _has_vertex_near(rotation_stack_vertices, (0.0, 1.0, 0.0))
+        for strength in (0, 1, 37, 73, 100):
+            rotation_stack_effector_settings.strength = strength
+            rotation_stack_cloner.update_tag()
+            bpy.context.view_layer.update()
+            rotation_stack_vertices = _evaluated_vertices(rotation_stack_cloner)
+            weight = strength / 100.0
+            expected_rotation = Euler(
+                (
+                    rotation_stack_effector_settings.rotation_x * weight,
+                    rotation_stack_effector_settings.rotation_y * weight,
+                    rotation_stack_effector_settings.rotation_z * weight,
+                ),
+                "XYZ",
+            ).to_quaternion()
+            expected_vertex = expected_rotation @ Vector((1.0, 0.0, 0.0))
+            assert _has_vertex_near(
+                rotation_stack_vertices,
+                tuple(expected_vertex),
+                tolerance=0.001,
+            ), (strength, expected_vertex, rotation_stack_vertices)
 
         bpy.ops.mesh.primitive_cube_add(location=(6.0, 0.0, 0.0))
         second_source = bpy.context.object

@@ -37,30 +37,41 @@ def create_grid_cloner(
     )
     modifier.node_group = create_grid_node_group()
 
-    modifier_inputs.set_modifier_input(modifier, properties.SOCKET_COUNT_X, count_x)
-    modifier_inputs.set_modifier_input(modifier, properties.SOCKET_COUNT_Y, count_y)
-    modifier_inputs.set_modifier_input(modifier, properties.SOCKET_COUNT_Z, count_z)
-    modifier_inputs.set_modifier_input(modifier, properties.SOCKET_SPACING_X, spacing_x)
-    modifier_inputs.set_modifier_input(modifier, properties.SOCKET_SPACING_Y, spacing_y)
-    modifier_inputs.set_modifier_input(modifier, properties.SOCKET_SPACING_Z, spacing_z)
-    _set_default_distribution_inputs(modifier)
-    _set_default_effector_inputs(modifier)
-    _set_default_source_transform(modifier)
+    initial_values = {
+        socket_name: value
+        for socket_name, value in properties.GRID_INPUT_DEFAULTS.items()
+        if socket_name in modifier_inputs.GRID_SOCKET_NAMES
+    }
+    initial_values.update(
+        {
+            properties.SOCKET_COUNT_X: count_x,
+            properties.SOCKET_COUNT_Y: count_y,
+            properties.SOCKET_COUNT_Z: count_z,
+            properties.SOCKET_SPACING_X: spacing_x,
+            properties.SOCKET_SPACING_Y: spacing_y,
+            properties.SOCKET_SPACING_Z: spacing_z,
+        }
+    )
+    modifier_inputs.set_modifier_inputs(modifier, initial_values)
 
     cloner[properties.PROP_CLONER_TYPE] = "CLONER"
     cloner[properties.PROP_CLONER_MODE] = "GRID"
     cloner[properties.PROP_CLONER_ID] = uuid.uuid4().hex
     source_management.assign_source(cloner, source_object)
-    _set_object_settings(
-        cloner,
-        source_object=source_object,
-        count_x=count_x,
-        count_y=count_y,
-        count_z=count_z,
-        spacing_x=spacing_x,
-        spacing_y=spacing_y,
-        spacing_z=spacing_z,
-    )
+    cloner[properties.PROP_INITIALIZING_CLONER] = True
+    try:
+        _set_object_settings(
+            cloner,
+            source_object=source_object,
+            count_x=count_x,
+            count_y=count_y,
+            count_z=count_z,
+            spacing_x=spacing_x,
+            spacing_y=spacing_y,
+            spacing_z=spacing_z,
+        )
+    finally:
+        cloner.pop(properties.PROP_INITIALIZING_CLONER, None)
 
     bpy.ops.object.select_all(action="DESELECT")
     cloner.select_set(True)
@@ -199,61 +210,3 @@ def _set_object_settings(
     settings.source_scale_z = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_SOURCE_SCALE_Z
     ]
-
-
-def _set_default_source_transform(modifier: bpy.types.NodesModifier) -> None:
-    for socket_name in (
-        properties.SOCKET_SOURCE_POSITION_X,
-        properties.SOCKET_SOURCE_POSITION_Y,
-        properties.SOCKET_SOURCE_POSITION_Z,
-        properties.SOCKET_SOURCE_ROTATION_X,
-        properties.SOCKET_SOURCE_ROTATION_Y,
-        properties.SOCKET_SOURCE_ROTATION_Z,
-        properties.SOCKET_SOURCE_SCALE_X,
-        properties.SOCKET_SOURCE_SCALE_Y,
-        properties.SOCKET_SOURCE_SCALE_Z,
-    ):
-        modifier_inputs.set_modifier_input(
-            modifier,
-            socket_name,
-            properties.GRID_INPUT_DEFAULTS[socket_name],
-        )
-
-
-def _set_default_effector_inputs(modifier: bpy.types.NodesModifier) -> None:
-    for socket_name in properties.EFFECTOR_VALUE_SOCKET_NAMES:
-        modifier_inputs.set_modifier_input(
-            modifier,
-            socket_name,
-            properties.GRID_INPUT_DEFAULTS[socket_name],
-        )
-
-
-def _set_default_distribution_inputs(modifier: bpy.types.NodesModifier) -> None:
-    for socket_name in (
-        properties.SOCKET_DISTRIBUTION_MODE,
-        properties.SOCKET_SPACING_MODE,
-        properties.SOCKET_LINEAR_COUNT,
-        properties.SOCKET_LINEAR_SPACING,
-        properties.SOCKET_LINEAR_DIRECTION_X,
-        properties.SOCKET_LINEAR_DIRECTION_Y,
-        properties.SOCKET_LINEAR_DIRECTION_Z,
-        properties.SOCKET_RADIAL_COUNT,
-        properties.SOCKET_RADIAL_RADIUS,
-        properties.SOCKET_RADIAL_ARC,
-        properties.SOCKET_RADIAL_AXIS,
-        properties.SOCKET_RADIAL_ALIGN,
-        properties.SOCKET_OBJECT_DISTRIBUTION_MODE,
-        properties.SOCKET_OBJECT_SPLINE_DISTRIBUTION,
-        properties.SOCKET_OBJECT_SPLINE_COUNT,
-        properties.SOCKET_OBJECT_SPLINE_STEP,
-        properties.SOCKET_OBJECT_SPLINE_PER_SPLINE,
-        properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION,
-        properties.SOCKET_OBJECT_ALIGNMENT,
-        properties.SOCKET_OBJECT_UP_VECTOR,
-    ):
-        modifier_inputs.set_modifier_input(
-            modifier,
-            socket_name,
-            properties.GRID_INPUT_DEFAULTS[socket_name],
-        )

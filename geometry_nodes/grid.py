@@ -5,9 +5,14 @@ from __future__ import annotations
 import bpy
 
 from .. import properties
+from . import library
 
 
-def create_grid_node_group(nested_grid: dict | None = None) -> bpy.types.GeometryNodeTree:
+def create_grid_node_group(
+    nested_grid: dict | None = None,
+    *,
+    use_bundled: bool = True,
+) -> bpy.types.GeometryNodeTree:
     """Create a fresh grid cloner node group.
 
     The group intentionally exposes only milestone parameters. Additional
@@ -18,6 +23,10 @@ def create_grid_node_group(nested_grid: dict | None = None) -> bpy.types.Geometr
         reusable = _reusable_grid_node_group()
         if reusable is not None:
             return reusable
+        if use_bundled:
+            bundled = library.load_grid_node_group()
+            if bundled is not None:
+                return bundled
 
     node_group = bpy.data.node_groups.new(
         properties.GRID_NODE_GROUP_NAME,
@@ -37,6 +46,7 @@ def _reusable_grid_node_group() -> bpy.types.GeometryNodeTree | None:
     for node_group in bpy.data.node_groups:
         if (
             node_group.bl_idname == "GeometryNodeTree"
+            and node_group.name.startswith(properties.GRID_NODE_GROUP_NAME)
             and node_group.get(properties.PROP_NODE_GROUP_BUILD_VERSION)
             == properties.GRID_NODE_GROUP_BUILD_VERSION
         ):
@@ -623,7 +633,8 @@ def _create_nodes(
             collection_info,
             "Collection",
         )
-        source_node, source_socket = _build_source_transform(
+        source_node = _new_source_transform_group_node(
+            node_group,
             nodes,
             links,
             group_input,
@@ -631,6 +642,7 @@ def _create_nodes(
             "Instances",
             (-420, -180),
         )
+        source_socket = properties.SOCKET_GEOMETRY
         x_offset = -680
     else:
         collection_info.inputs["Collection"].default_value = nested_grid["source_collection"]
@@ -659,60 +671,62 @@ def _create_nodes(
         source_socket = "Geometry"
         x_offset = 180
 
-    grid_node, grid_socket = _build_grid_distribution(
+    grid_node = _new_distribution_group_node(
+        node_group,
         nodes,
         links,
-        source_node=source_node,
-        source_socket=source_socket,
-        counts=(
-            properties.SOCKET_COUNT_X,
-            properties.SOCKET_COUNT_Y,
-            properties.SOCKET_COUNT_Z,
-        ),
-        spacings=(
-            properties.SOCKET_SPACING_X,
-            properties.SOCKET_SPACING_Y,
-            properties.SOCKET_SPACING_Z,
-        ),
-        origin=(x_offset, 250),
-        group_input=group_input,
-        source_count=properties.SOCKET_SOURCE_COUNT,
+        group_input,
+        source_node,
+        source_socket,
+        properties.GRID_DISTRIBUTION_NODE_GROUP_NAME,
+        _GRID_DISTRIBUTION_INPUTS,
+        _build_internal_grid_distribution,
+        (x_offset, 250),
     )
-    linear_node, linear_socket = _build_linear_distribution(
+    linear_node = _new_distribution_group_node(
+        node_group,
         nodes,
         links,
-        source_node=source_node,
-        source_socket=source_socket,
-        origin=(x_offset, -350),
-        group_input=group_input,
-        source_count=properties.SOCKET_SOURCE_COUNT,
+        group_input,
+        source_node,
+        source_socket,
+        properties.LINEAR_DISTRIBUTION_NODE_GROUP_NAME,
+        _LINEAR_DISTRIBUTION_INPUTS,
+        _build_internal_linear_distribution,
+        (x_offset, 50),
     )
-    radial_node, radial_socket = _build_radial_distribution(
+    radial_node = _new_distribution_group_node(
+        node_group,
         nodes,
         links,
-        source_node=source_node,
-        source_socket=source_socket,
-        origin=(x_offset, -900),
-        group_input=group_input,
-        source_count=properties.SOCKET_SOURCE_COUNT,
+        group_input,
+        source_node,
+        source_socket,
+        properties.RADIAL_DISTRIBUTION_NODE_GROUP_NAME,
+        _RADIAL_DISTRIBUTION_INPUTS,
+        _build_internal_radial_distribution,
+        (x_offset, -150),
     )
-    object_node, object_socket = _build_object_distribution(
+    object_node = _new_distribution_group_node(
+        node_group,
         nodes,
         links,
-        source_node=source_node,
-        source_socket=source_socket,
-        origin=(x_offset, -1800),
-        group_input=group_input,
-        source_count=properties.SOCKET_SOURCE_COUNT,
+        group_input,
+        source_node,
+        source_socket,
+        properties.OBJECT_DISTRIBUTION_NODE_GROUP_NAME,
+        _OBJECT_DISTRIBUTION_INPUTS,
+        _build_internal_object_distribution,
+        (x_offset, -350),
     )
     output_node, output_socket = _build_distribution_switch(
         nodes,
         links,
         group_input,
-        grid=(grid_node, grid_socket),
-        linear=(linear_node, linear_socket),
-        radial=(radial_node, radial_socket),
-        object_distribution=(object_node, object_socket),
+        grid=(grid_node, properties.SOCKET_GEOMETRY),
+        linear=(linear_node, properties.SOCKET_GEOMETRY),
+        radial=(radial_node, properties.SOCKET_GEOMETRY),
+        object_distribution=(object_node, properties.SOCKET_GEOMETRY),
         location=(x_offset + 1560, -320),
     )
     realize_output = _new_node(
@@ -723,6 +737,280 @@ def _create_nodes(
     group_output = _new_node(nodes, "NodeGroupOutput", (x_offset + 1840, 90))
     _link(links, output_node, output_socket, realize_output, "Geometry")
     _link(links, realize_output, "Geometry", group_output, properties.SOCKET_GEOMETRY)
+
+
+_EFFECTOR_INPUTS = (
+    *properties.EFFECTOR_OBJECT_SOCKET_NAMES,
+    *properties.EFFECTOR_VALUE_SOCKET_NAMES,
+)
+_SOURCE_TRANSFORM_INPUTS = (
+    properties.SOCKET_SOURCE_POSITION_X,
+    properties.SOCKET_SOURCE_POSITION_Y,
+    properties.SOCKET_SOURCE_POSITION_Z,
+    properties.SOCKET_SOURCE_ROTATION_X,
+    properties.SOCKET_SOURCE_ROTATION_Y,
+    properties.SOCKET_SOURCE_ROTATION_Z,
+    properties.SOCKET_SOURCE_SCALE_X,
+    properties.SOCKET_SOURCE_SCALE_Y,
+    properties.SOCKET_SOURCE_SCALE_Z,
+)
+_GRID_DISTRIBUTION_INPUTS = (
+    properties.SOCKET_SOURCE_COUNT,
+    properties.SOCKET_SPACING_MODE,
+    properties.SOCKET_COUNT_X,
+    properties.SOCKET_COUNT_Y,
+    properties.SOCKET_COUNT_Z,
+    properties.SOCKET_SPACING_X,
+    properties.SOCKET_SPACING_Y,
+    properties.SOCKET_SPACING_Z,
+    *_EFFECTOR_INPUTS,
+)
+_LINEAR_DISTRIBUTION_INPUTS = (
+    properties.SOCKET_SOURCE_COUNT,
+    properties.SOCKET_SPACING_MODE,
+    properties.SOCKET_LINEAR_COUNT,
+    properties.SOCKET_LINEAR_SPACING,
+    properties.SOCKET_LINEAR_DIRECTION_X,
+    properties.SOCKET_LINEAR_DIRECTION_Y,
+    properties.SOCKET_LINEAR_DIRECTION_Z,
+    *_EFFECTOR_INPUTS,
+)
+_RADIAL_DISTRIBUTION_INPUTS = (
+    properties.SOCKET_SOURCE_COUNT,
+    properties.SOCKET_RADIAL_COUNT,
+    properties.SOCKET_RADIAL_RADIUS,
+    properties.SOCKET_RADIAL_ARC,
+    properties.SOCKET_RADIAL_AXIS,
+    properties.SOCKET_RADIAL_ALIGN,
+    *_EFFECTOR_INPUTS,
+)
+_OBJECT_DISTRIBUTION_INPUTS = (
+    properties.SOCKET_SOURCE_COUNT,
+    properties.SOCKET_OBJECT_DISTRIBUTION_OBJECT,
+    properties.SOCKET_OBJECT_DISTRIBUTION_MODE,
+    properties.SOCKET_OBJECT_SPLINE_DISTRIBUTION,
+    properties.SOCKET_OBJECT_SPLINE_COUNT,
+    properties.SOCKET_OBJECT_SPLINE_STEP,
+    properties.SOCKET_OBJECT_SPLINE_PER_SPLINE,
+    properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION,
+    properties.SOCKET_OBJECT_ALIGNMENT,
+    properties.SOCKET_OBJECT_UP_VECTOR,
+    *_EFFECTOR_INPUTS,
+)
+
+
+def _new_distribution_group_node(
+    master_group,
+    nodes,
+    links,
+    group_input,
+    source_node,
+    source_socket: str,
+    group_name: str,
+    input_names: tuple[str, ...],
+    builder,
+    location: tuple[int, int],
+):
+    distribution_group = _get_or_create_distribution_group(
+        master_group,
+        group_name,
+        input_names,
+        builder,
+    )
+    group_node = _new_node(nodes, "GeometryNodeGroup", location)
+    group_node.node_tree = distribution_group
+    _link(links, source_node, source_socket, group_node, properties.SOCKET_GEOMETRY)
+    for socket_name in input_names:
+        _link(links, group_input, socket_name, group_node, socket_name)
+    return group_node
+
+
+def _new_source_transform_group_node(
+    master_group,
+    nodes,
+    links,
+    group_input,
+    source_node,
+    source_socket: str,
+    location: tuple[int, int],
+):
+    source_group = _get_or_create_source_transform_group(master_group)
+    group_node = _new_node(nodes, "GeometryNodeGroup", location)
+    group_node.node_tree = source_group
+    _link(links, source_node, source_socket, group_node, properties.SOCKET_GEOMETRY)
+    for socket_name in _SOURCE_TRANSFORM_INPUTS:
+        _link(links, group_input, socket_name, group_node, socket_name)
+    return group_node
+
+
+def _get_or_create_source_transform_group(master_group) -> bpy.types.GeometryNodeTree:
+    for node_group in bpy.data.node_groups:
+        if (
+            node_group.bl_idname == "GeometryNodeTree"
+            and node_group.name == properties.SOURCE_TRANSFORM_NODE_GROUP_NAME
+            and node_group.get(properties.PROP_NODE_GROUP_BUILD_VERSION)
+            == properties.GRID_NODE_GROUP_BUILD_VERSION
+        ):
+            return node_group
+
+    node_group = bpy.data.node_groups.new(
+        properties.SOURCE_TRANSFORM_NODE_GROUP_NAME,
+        "GeometryNodeTree",
+    )
+    node_group[properties.PROP_NODE_GROUP_BUILD_VERSION] = (
+        properties.GRID_NODE_GROUP_BUILD_VERSION
+    )
+    interface = node_group.interface
+    _new_socket(interface, properties.SOCKET_GEOMETRY, "INPUT", "NodeSocketGeometry")
+    _new_socket(interface, properties.SOCKET_GEOMETRY, "OUTPUT", "NodeSocketGeometry")
+    master_inputs = {
+        item.name: item
+        for item in master_group.interface.items_tree
+        if getattr(item, "item_type", None) == "SOCKET"
+        and getattr(item, "in_out", None) == "INPUT"
+    }
+    for socket_name in _SOURCE_TRANSFORM_INPUTS:
+        _copy_interface_socket(interface, master_inputs[socket_name])
+    _hide_modifier_inputs(interface)
+
+    group_input = _new_node(node_group.nodes, "NodeGroupInput", (-1600, 0))
+    group_output = _new_node(node_group.nodes, "NodeGroupOutput", (1600, 0))
+    transformed, transformed_socket = _build_source_transform(
+        node_group.nodes,
+        node_group.links,
+        group_input,
+        group_input,
+        properties.SOCKET_GEOMETRY,
+        (-1300, 0),
+    )
+    _link(
+        node_group.links,
+        transformed,
+        transformed_socket,
+        group_output,
+        properties.SOCKET_GEOMETRY,
+    )
+    return node_group
+
+
+def _get_or_create_distribution_group(
+    master_group,
+    group_name: str,
+    input_names: tuple[str, ...],
+    builder,
+) -> bpy.types.GeometryNodeTree:
+    for node_group in bpy.data.node_groups:
+        if (
+            node_group.bl_idname == "GeometryNodeTree"
+            and node_group.name == group_name
+            and node_group.get(properties.PROP_NODE_GROUP_BUILD_VERSION)
+            == properties.GRID_NODE_GROUP_BUILD_VERSION
+        ):
+            return node_group
+
+    node_group = bpy.data.node_groups.new(group_name, "GeometryNodeTree")
+    node_group[properties.PROP_NODE_GROUP_BUILD_VERSION] = (
+        properties.GRID_NODE_GROUP_BUILD_VERSION
+    )
+    interface = node_group.interface
+    _new_socket(interface, properties.SOCKET_GEOMETRY, "INPUT", "NodeSocketGeometry")
+    _new_socket(interface, properties.SOCKET_GEOMETRY, "OUTPUT", "NodeSocketGeometry")
+    master_inputs = {
+        item.name: item
+        for item in master_group.interface.items_tree
+        if getattr(item, "item_type", None) == "SOCKET"
+        and getattr(item, "in_out", None) == "INPUT"
+    }
+    for socket_name in input_names:
+        _copy_interface_socket(interface, master_inputs[socket_name])
+    _hide_modifier_inputs(interface)
+
+    group_input = _new_node(node_group.nodes, "NodeGroupInput", (-2200, 0))
+    group_output = _new_node(node_group.nodes, "NodeGroupOutput", (2400, 0))
+    output_node, output_socket = builder(node_group.nodes, node_group.links, group_input)
+    _link(
+        node_group.links,
+        output_node,
+        output_socket,
+        group_output,
+        properties.SOCKET_GEOMETRY,
+    )
+    return node_group
+
+
+def _copy_interface_socket(interface, source_socket):
+    socket = _new_socket(
+        interface,
+        source_socket.name,
+        "INPUT",
+        source_socket.socket_type,
+    )
+    for attribute in ("default_value", "min_value", "max_value", "subtype"):
+        if not hasattr(source_socket, attribute) or not hasattr(socket, attribute):
+            continue
+        try:
+            setattr(socket, attribute, getattr(source_socket, attribute))
+        except (AttributeError, TypeError, ValueError):
+            pass
+    return socket
+
+
+def _build_internal_grid_distribution(nodes, links, group_input) -> tuple:
+    return _build_grid_distribution(
+        nodes,
+        links,
+        source_node=group_input,
+        source_socket=properties.SOCKET_GEOMETRY,
+        counts=(
+            properties.SOCKET_COUNT_X,
+            properties.SOCKET_COUNT_Y,
+            properties.SOCKET_COUNT_Z,
+        ),
+        spacings=(
+            properties.SOCKET_SPACING_X,
+            properties.SOCKET_SPACING_Y,
+            properties.SOCKET_SPACING_Z,
+        ),
+        origin=(-1800, 0),
+        group_input=group_input,
+        source_count=properties.SOCKET_SOURCE_COUNT,
+    )
+
+
+def _build_internal_linear_distribution(nodes, links, group_input) -> tuple:
+    return _build_linear_distribution(
+        nodes,
+        links,
+        source_node=group_input,
+        source_socket=properties.SOCKET_GEOMETRY,
+        origin=(-1800, 0),
+        group_input=group_input,
+        source_count=properties.SOCKET_SOURCE_COUNT,
+    )
+
+
+def _build_internal_radial_distribution(nodes, links, group_input) -> tuple:
+    return _build_radial_distribution(
+        nodes,
+        links,
+        source_node=group_input,
+        source_socket=properties.SOCKET_GEOMETRY,
+        origin=(-1800, 0),
+        group_input=group_input,
+        source_count=properties.SOCKET_SOURCE_COUNT,
+    )
+
+
+def _build_internal_object_distribution(nodes, links, group_input) -> tuple:
+    return _build_object_distribution(
+        nodes,
+        links,
+        source_node=group_input,
+        source_socket=properties.SOCKET_GEOMETRY,
+        origin=(-1800, 0),
+        group_input=group_input,
+        source_count=properties.SOCKET_SOURCE_COUNT,
+    )
 
 
 def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> None:
@@ -1536,10 +1824,63 @@ def _build_all_plain_effector_points(
             origin,
         )
 
-    current_node = points_node
-    current_socket = points_socket
-    rotation_vector_node = None
-    rotation_vector_socket = None
+    effector_group = _get_or_create_effector_stack_node_group()
+    group_node = _new_node(nodes, "GeometryNodeGroup", origin)
+    group_node.node_tree = effector_group
+    _link(links, points_node, points_socket, group_node, properties.SOCKET_GEOMETRY)
+    for socket_set in properties.EFFECTOR_SOCKET_SETS:
+        for socket_name in socket_set.values():
+            if socket_name in group_node.inputs:
+                _link(links, group_input, socket_name, group_node, socket_name)
+    return (
+        group_node,
+        properties.SOCKET_GEOMETRY,
+        group_node,
+        "Rotation",
+        group_node,
+        "Scale",
+    )
+
+
+def _get_or_create_effector_stack_node_group() -> bpy.types.GeometryNodeTree:
+    for node_group in bpy.data.node_groups:
+        if (
+            node_group.bl_idname == "GeometryNodeTree"
+            and node_group.name == properties.EFFECTOR_STACK_NODE_GROUP_NAME
+            and node_group.get(properties.PROP_NODE_GROUP_BUILD_VERSION)
+            == properties.GRID_NODE_GROUP_BUILD_VERSION
+        ):
+            return node_group
+
+    node_group = bpy.data.node_groups.new(
+        properties.EFFECTOR_STACK_NODE_GROUP_NAME,
+        "GeometryNodeTree",
+    )
+    node_group[properties.PROP_NODE_GROUP_BUILD_VERSION] = (
+        properties.GRID_NODE_GROUP_BUILD_VERSION
+    )
+    interface = node_group.interface
+    _new_socket(interface, properties.SOCKET_GEOMETRY, "INPUT", "NodeSocketGeometry")
+    _new_socket(interface, properties.SOCKET_GEOMETRY, "OUTPUT", "NodeSocketGeometry")
+    _new_socket(interface, "Rotation", "OUTPUT", "NodeSocketRotation")
+    _new_socket(interface, "Scale", "OUTPUT", "NodeSocketVector")
+    for index, socket_set in enumerate(properties.EFFECTOR_SOCKET_SETS, start=1):
+        _create_effector_interface(interface, socket_set, index)
+    _hide_modifier_inputs(interface)
+    _create_effector_stack_nodes(node_group)
+    return node_group
+
+
+def _create_effector_stack_nodes(node_group: bpy.types.GeometryNodeTree) -> None:
+    nodes = node_group.nodes
+    links = node_group.links
+    group_input = _new_node(nodes, "NodeGroupInput", (-3200, 0))
+    group_output = _new_node(nodes, "NodeGroupOutput", (800, 0))
+
+    current_node = group_input
+    current_socket = properties.SOCKET_GEOMETRY
+    rotation_node = None
+    rotation_socket = None
     scale_node = None
     scale_socket = None
     for index, socket_set in enumerate(properties.EFFECTOR_SOCKET_SETS):
@@ -1550,39 +1891,45 @@ def _build_all_plain_effector_points(
                 group_input,
                 current_node,
                 current_socket,
-                (origin[0], origin[1] - (index * 760)),
+                (-2800, 700 - (index * 760)),
                 socket_set,
             )
         )
-        if rotation_vector_node is None:
-            rotation_vector_node = slot_rotation_node
-            rotation_vector_socket = slot_rotation_socket
+        if rotation_node is None:
+            rotation_node = slot_rotation_node
+            rotation_socket = slot_rotation_socket
         else:
-            add_rotation = _new_vector_math_node(
+            compose_rotation = _new_node(
                 nodes,
-                (origin[0] + 2960, origin[1] + 700 - (index * 180)),
-                "ADD",
+                "FunctionNodeRotateRotation",
+                (200, 700 - (index * 180)),
             )
-            _link(links, rotation_vector_node, rotation_vector_socket, add_rotation, "Vector")
-            links.new(slot_rotation_node.outputs[slot_rotation_socket], add_rotation.inputs[1])
-            rotation_vector_node = add_rotation
-            rotation_vector_socket = "Vector"
+            _link(links, rotation_node, rotation_socket, compose_rotation, "Rotation")
+            _link(
+                links,
+                slot_rotation_node,
+                slot_rotation_socket,
+                compose_rotation,
+                "Rotate By",
+            )
+            rotation_node = compose_rotation
+            rotation_socket = "Rotation"
         if scale_node is None:
             scale_node = slot_scale_node
             scale_socket = slot_scale_socket
         else:
             multiply_scale = _new_vector_math_node(
                 nodes,
-                (origin[0] + 2960, origin[1] + 420 - (index * 180)),
+                (200, 420 - (index * 180)),
                 "MULTIPLY",
             )
             _link(links, scale_node, scale_socket, multiply_scale, "Vector")
             links.new(slot_scale_node.outputs[slot_scale_socket], multiply_scale.inputs[1])
             scale_node = multiply_scale
             scale_socket = "Vector"
-    rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (origin[0] + 3240, origin[1] + 700))
-    _link(links, rotation_vector_node, rotation_vector_socket, rotation, "Euler")
-    return current_node, current_socket, rotation, "Rotation", scale_node, scale_socket
+    _link(links, current_node, current_socket, group_output, properties.SOCKET_GEOMETRY)
+    _link(links, rotation_node, rotation_socket, group_output, "Rotation")
+    _link(links, scale_node, scale_socket, group_output, "Scale")
 
 
 def _build_plain_effector_points(
@@ -1666,7 +2013,12 @@ def _build_plain_effector_points(
     negative_rotation = _new_vector_math_node(nodes, (x + 1220, y + 700), "SCALE")
     random_rotation = _new_random_vector_node(nodes, (x + 1460, y + 700))
     effector_rotation = _new_vector_switch_node(nodes, (x + 2180, y + 700))
-    weighted_rotation = _new_vector_math_node(nodes, (x + 2420, y + 700), "SCALE")
+    weighted_rotation_euler = _new_vector_math_node(
+        nodes,
+        (x + 2420, y + 700),
+        "SCALE",
+    )
+    weighted_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 2660, y + 700))
 
     safe_falloff.inputs[1].default_value = 0.000001
     falloff_weight.use_clamp = True
@@ -1829,10 +2181,11 @@ def _build_plain_effector_points(
     _link(links, is_random, "Value", effector_rotation, "Switch")
     _link(links, desired_rotation, "Vector", effector_rotation, "False")
     links.new(random_rotation.outputs[0], effector_rotation.inputs["True"])
-    _link(links, effector_rotation, "Output", weighted_rotation, "Vector")
-    _link(links, rotation_weight, "Output", weighted_rotation, "Scale")
+    _link(links, effector_rotation, "Output", weighted_rotation_euler, "Vector")
+    _link(links, rotation_weight, "Output", weighted_rotation_euler, "Scale")
+    _link(links, weighted_rotation_euler, "Vector", weighted_rotation, "Euler")
 
-    return set_position, "Geometry", weighted_rotation, "Vector", final_scale, "Vector"
+    return set_position, "Geometry", weighted_rotation, "Rotation", final_scale, "Vector"
 
 
 def _build_identity_instance_transform(

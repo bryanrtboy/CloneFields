@@ -91,6 +91,8 @@ def is_curve_distribution_object(obj: bpy.types.Object | None) -> bool:
 
 def _sync_source(self, context) -> None:
     obj = self.id_data
+    if obj.get(properties.PROP_INITIALIZING_CLONER):
+        return
     modifier = modifier_inputs.get_cloner_modifier(obj)
     if modifier is None:
         return
@@ -543,6 +545,8 @@ def _sync_source_scale_z(self, context) -> None:
 
 
 def _sync_modifier_value(self, socket_name: str, value) -> None:
+    if self.id_data.get(properties.PROP_INITIALIZING_CLONER):
+        return
     modifier = modifier_inputs.get_cloner_modifier(self.id_data)
     if modifier is not None:
         modifier_inputs.set_modifier_input(modifier, socket_name, value)

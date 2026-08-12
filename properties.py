@@ -6,6 +6,12 @@ CLONER_OBJECT_NAME = "Cloner"
 CLONER_MESH_NAME = "Clone Fields Output"
 CLONER_MODIFIER_NAME = "Cloner"
 GRID_NODE_GROUP_NAME = ".Clone Fields Grid Cloner"
+EFFECTOR_STACK_NODE_GROUP_NAME = ".Clone Fields Effector Stack"
+SOURCE_TRANSFORM_NODE_GROUP_NAME = ".Clone Fields Source Transform"
+GRID_DISTRIBUTION_NODE_GROUP_NAME = ".Clone Fields Distribution Grid"
+LINEAR_DISTRIBUTION_NODE_GROUP_NAME = ".Clone Fields Distribution Linear"
+RADIAL_DISTRIBUTION_NODE_GROUP_NAME = ".Clone Fields Distribution Radial"
+OBJECT_DISTRIBUTION_NODE_GROUP_NAME = ".Clone Fields Distribution Object"
 
 PROP_CLONER_TYPE = "clone_fields_type"
 PROP_CLONER_MODE = "clone_fields_mode"
@@ -18,7 +24,8 @@ PROP_EFFECTOR_TYPE = "clone_fields_effector_type"
 PROP_EFFECTOR_SHAPE = "clone_fields_effector_shape"
 PROP_SPACING_MODE_PREVIOUS = "clone_fields_spacing_mode_previous"
 PROP_NODE_GROUP_BUILD_VERSION = "clone_fields_node_group_build_version"
-GRID_NODE_GROUP_BUILD_VERSION = 14
+PROP_INITIALIZING_CLONER = "clone_fields_initializing"
+GRID_NODE_GROUP_BUILD_VERSION = 18
 EFFECTOR_STRENGTH_PERCENT_DEFAULT = 100
 
 SOCKET_GEOMETRY = "Geometry"

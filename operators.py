@@ -60,24 +60,14 @@ class CLONE_FIELDS_OT_add_cloner(bpy.types.Operator):
         active = context.view_layer.objects.active
         if active is not None:
             self.source_object_name = active.name
-        return context.window_manager.invoke_props_dialog(self)
-
-    def draw(self, context):
-        layout = self.layout
-        layout.prop_search(self, "source_object_name", context.scene, "objects")
-
-        grid = layout.grid_flow(row_major=True, columns=2, align=True)
-        grid.prop(self, "count_x")
-        grid.prop(self, "spacing_x")
-        grid.prop(self, "count_y")
-        grid.prop(self, "spacing_y")
-        grid.prop(self, "count_z")
-        grid.prop(self, "spacing_z")
+        return self.execute(context)
 
     def execute(self, context):
         source_object = bpy.data.objects.get(self.source_object_name)
         if source_object is None:
-            self.report({"ERROR"}, "Choose a source object to clone")
+            source_object = context.view_layer.objects.active
+        if source_object is None:
+            self.report({"ERROR"}, "Select a source object to clone")
             return {"CANCELLED"}
         if modifier_inputs.is_cloner_object(source_object):
             self.report({"ERROR"}, "Clone Fields cloners cannot be used as sources yet")

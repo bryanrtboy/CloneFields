@@ -1,17 +1,17 @@
 # Clone Fields
 
 Clone Fields is a free Blender extension for procedural cloning using Geometry
-Nodes.
+Nodes. Its workflow is inspired by procedural modeling systems such as Cinema
+4D's Cloner and Effectors, with an interface designed for Blender modeling and
+3D-printing workflows.
 
 ![Clone Fields cloner grid in Blender](docs/ClonerFieldsScreenshot.png)
 
-## Install
+## For Users
 
-Download the installable extension zip:
+### Install
 
-```text
-dist/clone_fields.zip
-```
+Download `dist/clone_fields.zip`. Do not unzip it.
 
 In Blender 4.2 or newer:
 
@@ -20,86 +20,119 @@ In Blender 4.2 or newer:
 3. Select `clone_fields.zip`.
 4. Enable `Clone Fields` if Blender does not enable it automatically.
 
-To use it, select a source object and choose:
+### Create a Cloner
+
+Select a source object, then choose:
 
 ```text
 Add > Clone Fields > Cloner
 ```
 
-The created `Cloner` object contains the live Geometry Nodes modifier and starts
-as a 3 by 3 grid. The source object is parented under the cloner and hidden
-while the modifier is enabled.
+The new Cloner is created immediately as a centered 3 by 3 grid. Its source is parented under
+the Cloner and hidden while the modifier is enabled. Edit Clone Fields from the
+Cloner's Modifier tab; opening Geometry Nodes is not required.
 
-The Cloner modifier currently supports:
+### Distribution Modes
 
-- Grid distribution
-- Linear distribution
-- Radial distribution
-- Object distribution
+- **Grid:** Count and Spacing on X, Y, and Z.
+- **Linear:** Count, Spacing, and a direction vector.
+- **Radial:** Count, Radius, Arc, Axis, and optional alignment.
+- **Object:** Place clones on mesh vertices or polygon centers, or along curves,
+  text, and Grease Pencil strokes.
 
-The Modifier tab shows a Clone Fields panel with named mode controls for Grid,
-Linear, Radial, and Object. Only the controls for the selected distribution mode
-are shown.
+Grid and Linear support two spacing conventions. `Per Step` is the distance
+between neighboring clones, so changing Count changes the total size.
+`Endpoint` is the total distance from the first clone to the last, so changing
+Count redistributes clones inside the same size.
 
 Grid and Radial distributions are centered on the Cloner origin. Selected
-Cloners draw lightweight viewport guides for grid bounds or radial radius.
-Grid axis handles update spacing, and the Radial handle updates radius.
-Grid and Linear modes have a Spacing Mode. `Per Step` treats the value as the
-distance between neighboring clones, so changing Count grows or shrinks the
-field. `Endpoint` treats the value as the total distance from the first clone to
-the last clone, so changing Count redistributes clones inside the same span.
+Cloners display viewport guides. Grid handles edit axis spacing, and the Radial
+handle edits Radius.
 
-360-degree arcs use the clone count as the angular step divisor, so a count of
-8 produces 8 evenly spaced clones without an overlapping endpoint. `Align`
-makes the source transform follow the radial step.
+Radial 360-degree arcs divide the circle by Count, so the last clone does not
+overlap the first. `Align` makes the source transform follow each radial step.
 
-Object distribution places clones on a chosen mesh, curve, text, or Grease
-Pencil object. Mesh objects support Vertices and Polygon Centers. Curve-like
-objects provide four distribution choices: Points uses the curve's evaluated
-points, Count samples a requested number on each spline, Step uses a fixed
-distance, and Even distributes a requested count by arc length. `Per Spline`
-restarts Count, Step, or Even on every contour or stroke; turn it off to treat a
-multi-contour object as one accumulated path. `Smooth Rotation` uses the curve
-normal to stabilize roll around the tangent. The distribution object is not
-hidden automatically, so you can leave it visible for modeling context or hide
-it manually.
+### Object and Spline Distribution
 
-For mesh alignment, `Up Vector` controls banking around the aligned local Z
-axis. The default `None` automatically keeps clones visually upright while
-avoiding pole singularities. `+X`, `+Y`, and `+Z` use a fixed Cloner axis when
-a specific orientation is needed.
+Mesh objects support `Vertices` and `Polygon Centers`. Alignment can follow
+surface normals or point toward the distribution object's center. `Up Vector`
+controls banking. Its default `None` automatically keeps clones visually upright
+while avoiding pole singularities; `+X`, `+Y`, and `+Z` use a fixed Cloner axis.
 
-To use multiple sources, parent additional source objects directly under the
-Cloner. Clone Fields alternates through the child sources by clone index. Empty
-objects can be used as blank/spacer sources.
+Curve-like objects provide:
 
-To add Effectors, select a Cloner and use `New Basic` or `New Random` in the
-Clone Fields modifier panel. This creates a visible controller object in the
-scene named like `Basic Effector [Spherical]` or `Random Effector [None]`.
-The Field menu supports None, Spherical, Cubic, Cylindrical, and Linear fields;
-changing it renames the Effector and updates the viewport guide. `None` affects
-all clones without drawing a field shape, and is the default for Random
-Effectors. Cylindrical fields add a Height control, and Linear fields use Length
-to separate two boundary planes along the Effector's local X axis. Random
-Effectors use Seed plus Position, Rotation, and Scale Variation ranges. Move or
-keyframe the controller objects
-directly, or use the Effector stack's scene-select icon to make one active for
-movement. The stack also lets you select an effector for editing, enable it,
-reorder it, or remove it. Use `Link Existing` to share one Effector object across
-multiple Cloners. Effector settings are stored on the Effector object, so editing
-Radius, Height, Length, Falloff, Strength, Field, or transform amounts from any
-linked Cloner updates that shared Effector everywhere. Each Cloner stack entry
-keeps its own `Cloner Influence` value for reducing that Effector's local impact.
-Effector size is controlled by field dimensions and Falloff, so object scale is
-locked and reset to keep the field predictable. Cubic fields show this size
-control as `Size`.
-Only the selected effector's settings are shown. Global Strength, Cloner
-Influence, and Falloff are 0-100% sliders. Global Strength controls the amount
-of the effector transform, and Falloff is 100% for a hard field edge or 0% to
-blend across the full field radius. The Cloner's source Offset controls are
-hidden until enabled.
+- **Points:** Use evaluated curve points.
+- **Count:** Request a clone count on each spline.
+- **Step:** Use a fixed distance along the path.
+- **Even:** Distribute a requested count by accumulated curve length.
 
-## Build the Zip
+`Per Spline` restarts Count, Step, or Even on every contour or stroke. Disable
+it to treat a multi-contour object as one accumulated path. `Smooth Rotation`
+uses the curve normal to stabilize roll around the tangent.
+
+Distribution objects remain visible unless you hide them manually.
+
+### Multiple Sources
+
+Parent additional source objects directly under the Cloner. Clone Fields cycles
+through child sources by clone index. Empty objects can serve as blank or spacer
+sources.
+
+### Effectors
+
+Select a Cloner and use `New Basic` or `New Random` in its Clone Fields panel.
+Effectors are visible controller objects that can be moved or keyframed.
+
+Field shapes include None, Spherical, Cubic, Cylindrical, and Linear. `None`
+affects every clone and is the Random Effector default. Cylindrical fields add
+Height, while Linear fields use Length between two viewport planes.
+
+The Effector stack lets you:
+
+- Select one Effector for editing.
+- Select its controller in the scene.
+- Enable, reorder, remove, or delete Effectors.
+- Use `Link Existing` to share one Effector across multiple Cloners.
+
+Effector properties are stored on the Effector object, so shared Radius, Height,
+Length, Falloff, Strength, Field, and transform values update every linked
+Cloner. Each stack entry has an independent `Cloner Influence`. Global Strength,
+Cloner Influence, and Falloff use 0-100% controls.
+
+Random Effectors add Seed and Position, Rotation, and Scale Variation ranges.
+Effector object scale is locked because Radius, Size, Height, or Length defines
+the field dimensions.
+
+## For Developers
+
+### Architecture
+
+Python owns installation, object relationships, UI, parameter synchronization,
+viewport controls, and generation of the Geometry Nodes implementation.
+Geometry Nodes owns live geometry, instances, distributions, alignment, and
+Effector evaluation.
+
+The Cloner modifier shares one master node group across all Cloners. The master
+group is intentionally small and delegates work to hidden reusable groups:
+
+```text
+Source Collection
+    -> Source Transform
+    -> Grid / Linear / Radial / Object Distribution
+    -> Distribution Switch
+    -> Realize Output
+```
+
+Each distribution uses the shared `.Clone Fields Effector Stack` group. Internal
+groups begin with `.` so they stay out of normal Blender menus while remaining
+inspectable in the Geometry Node Editor.
+
+The Python builder in `geometry_nodes/grid.py` is the source of truth. The file
+`geometry_nodes/assets/clone_fields_nodes.blend` is generated build output used
+to make the first Cloner fast. Runtime loading validates its build version and
+falls back to the Python builder if the library is unavailable or incompatible.
+
+### Build the Extension
 
 From the repository root:
 
@@ -107,10 +140,69 @@ From the repository root:
 python3 scripts/package_extension.py
 ```
 
-This writes:
+This command:
 
-```text
-dist/clone_fields.zip
+1. Runs Blender in the background to regenerate the node library.
+2. Creates `dist/clone_fields.zip`.
+3. Copies the same ZIP to the Desktop when available.
+
+Set `BLENDER_BIN` when Blender is not in the default macOS location or on PATH:
+
+```bash
+BLENDER_BIN="/path/to/blender" python3 scripts/package_extension.py
 ```
 
-It also copies the same zip to your Desktop when a Desktop folder exists.
+Use `--skip-node-library` only when intentionally packaging an already generated
+library. Use `--no-desktop-copy` to skip the convenience Desktop copy.
+
+Release libraries should be generated with the oldest Blender version supported
+by `blender_manifest.toml`. Newer Blender versions may write `.blend` files that
+older supported versions cannot open. Runtime loading falls back to the Python
+builder when the bundled library is incompatible, so the extension remains
+usable while rebuilding the release asset with the minimum version.
+
+### Tests
+
+Run Blender commands separately; on some macOS systems, launching Blender after
+another command in the same shell expression can trigger an unrelated USD
+startup crash.
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender \
+  --background --factory-startup \
+  --python scripts/verify_node_library.py
+```
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender \
+  --background --factory-startup \
+  --python scripts/smoke_test_blender.py
+```
+
+The first test verifies both bundled loading and Python fallback generation.
+The smoke test covers Cloner modes, source management, Effectors, mesh and spline
+alignment, multi-spline sampling, generated curves, and Grease Pencil geometry.
+
+### Changing the Node Graph
+
+1. Edit the builders in `geometry_nodes/grid.py`.
+2. Increment `GRID_NODE_GROUP_BUILD_VERSION` in `properties.py`.
+3. Regenerate and verify the node library.
+4. Run the full smoke test.
+5. Rebuild and inspect `dist/clone_fields.zip`.
+
+The build version lets existing Cloners upgrade to the current shared group.
+Modifier socket names are the compatibility contract: rename or remove them only
+with an explicit migration plan.
+
+### Future Extension Points
+
+- **Target Effector:** add one implementation to the shared Effector stage and
+  reuse the existing target/up-vector rotation logic.
+- **Shader Effector:** add texture sampling and projection as an Effector type,
+  then combine it with the existing field weight.
+- **Clones of Clones:** extend source management with cycle-safe Cloner references
+  and decide where nested instances are realized. Keep this out of distribution
+  builders; it belongs in the Source stage.
+
+See `docs/DESIGN.md` for the project goals and scope.
