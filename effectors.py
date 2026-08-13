@@ -10,21 +10,40 @@ from . import properties
 
 EFFECTOR_TYPE_BASIC = "BASIC"
 EFFECTOR_TYPE_RANDOM = "RANDOM"
+EFFECTOR_TYPE_TARGET = "TARGET"
+EFFECTOR_TYPE_SHADER = "SHADER"
 LEGACY_EFFECTOR_TYPE_PLAIN = "PLAIN"
 EFFECTOR_TYPE_VALUES = {
     EFFECTOR_TYPE_BASIC: 0,
     EFFECTOR_TYPE_RANDOM: 1,
+    EFFECTOR_TYPE_TARGET: 2,
+    EFFECTOR_TYPE_SHADER: 3,
     LEGACY_EFFECTOR_TYPE_PLAIN: 0,
 }
 EFFECTOR_TYPE_ITEMS = (
     (EFFECTOR_TYPE_BASIC, "Basic", "Basic transform effector"),
     (EFFECTOR_TYPE_RANDOM, "Random", "Random transform effector"),
+    (EFFECTOR_TYPE_TARGET, "Target", "Orient clones toward the Effector"),
+    (EFFECTOR_TYPE_SHADER, "Shader", "Use image luminance to vary clone transforms"),
 )
 EFFECTOR_TYPE_LABELS = {
     EFFECTOR_TYPE_BASIC: "Basic",
     EFFECTOR_TYPE_RANDOM: "Random",
+    EFFECTOR_TYPE_TARGET: "Target",
+    EFFECTOR_TYPE_SHADER: "Shader",
     LEGACY_EFFECTOR_TYPE_PLAIN: "Basic",
 }
+TARGET_AXIS_ITEMS = (
+    ("X", "X", "Aim the source object's local X axis at the target"),
+    ("Y", "Y", "Aim the source object's local Y axis at the target"),
+    ("Z", "Z", "Aim the source object's local Z axis at the target"),
+)
+TARGET_AXIS_VALUES = {"X": 0, "Y": 1, "Z": 2}
+SHADER_PROJECTION_ITEMS = (
+    ("PLANAR", "Planar", "Project the image through the Effector's local XY plane"),
+    ("CUBIC", "Cubic", "Project the image across the dominant local box face"),
+)
+SHADER_PROJECTION_VALUES = {"PLANAR": 0, "CUBIC": 1}
 FIELD_SHAPE_SPHERE = "SPHERE"
 FIELD_SHAPE_CUBE = "CUBE"
 FIELD_SHAPE_CYLINDER = "CYLINDER"
@@ -73,6 +92,9 @@ EFFECTOR_SLOT_PROPERTIES = (
         "rotation_x": "effector_rotation_x",
         "rotation_y": "effector_rotation_y",
         "rotation_z": "effector_rotation_z",
+        "target_axis": "effector_target_axis",
+        "target_up_axis": "effector_target_up_axis",
+        "target_object": "effector_target_object",
         "use_scale": "effector_use_scale",
         "scale_x": "effector_scale_x",
         "scale_y": "effector_scale_y",
@@ -96,6 +118,9 @@ EFFECTOR_SLOT_PROPERTIES = (
         "rotation_x": "effector2_rotation_x",
         "rotation_y": "effector2_rotation_y",
         "rotation_z": "effector2_rotation_z",
+        "target_axis": "effector2_target_axis",
+        "target_up_axis": "effector2_target_up_axis",
+        "target_object": "effector2_target_object",
         "use_scale": "effector2_use_scale",
         "scale_x": "effector2_scale_x",
         "scale_y": "effector2_scale_y",
@@ -119,6 +144,9 @@ EFFECTOR_SLOT_PROPERTIES = (
         "rotation_x": "effector3_rotation_x",
         "rotation_y": "effector3_rotation_y",
         "rotation_z": "effector3_rotation_z",
+        "target_axis": "effector3_target_axis",
+        "target_up_axis": "effector3_target_up_axis",
+        "target_object": "effector3_target_object",
         "use_scale": "effector3_use_scale",
         "scale_x": "effector3_scale_x",
         "scale_y": "effector3_scale_y",
@@ -132,6 +160,9 @@ EFFECTOR_GLOBAL_KEYS = (
     "seed",
     "invert",
     "radius",
+    "box_x",
+    "box_y",
+    "box_z",
     "height",
     "length",
     "falloff",
@@ -143,6 +174,13 @@ EFFECTOR_GLOBAL_KEYS = (
     "rotation_x",
     "rotation_y",
     "rotation_z",
+    "target_axis",
+    "target_up_axis",
+    "target_object",
+    "shader_image",
+    "shader_projection",
+    "shader_width",
+    "shader_height",
     "use_scale",
     "scale_x",
     "scale_y",
@@ -164,6 +202,14 @@ def effector_type_value(effector_type: str) -> int:
     return EFFECTOR_TYPE_VALUES.get(effector_type, EFFECTOR_TYPE_VALUES[EFFECTOR_TYPE_BASIC])
 
 
+def target_axis_value(axis: str) -> int:
+    return TARGET_AXIS_VALUES.get(axis, TARGET_AXIS_VALUES["Z"])
+
+
+def shader_projection_value(projection: str) -> int:
+    return SHADER_PROJECTION_VALUES.get(projection, 0)
+
+
 def effector_name(effector_type: str, shape: str) -> str:
     return f"{effector_type_label(effector_type)} Effector [{field_shape_label(shape)}]"
 
@@ -182,6 +228,8 @@ def is_effector_object(obj: bpy.types.Object | None) -> bool:
     return obj.get(properties.PROP_EFFECTOR_TYPE) in {
         EFFECTOR_TYPE_BASIC,
         EFFECTOR_TYPE_RANDOM,
+        EFFECTOR_TYPE_TARGET,
+        EFFECTOR_TYPE_SHADER,
         LEGACY_EFFECTOR_TYPE_PLAIN,
     }
 
@@ -192,7 +240,9 @@ def configure_effector_object(
     radius: float,
     effector_type: str | None = None,
 ) -> None:
-    if shape == FIELD_SHAPE_NONE:
+    if effector_type == EFFECTOR_TYPE_SHADER:
+        obj.empty_display_type = "IMAGE" if obj.data is not None else "PLAIN_AXES"
+    elif shape == FIELD_SHAPE_NONE:
         obj.empty_display_type = "PLAIN_AXES"
     elif shape == FIELD_SHAPE_CUBE:
         obj.empty_display_type = "CUBE"
@@ -282,6 +332,9 @@ def sync_effector_slot(settings, modifier, slot_index: int) -> None:
         effector_settings.type,
     )
     rename_effector_object(effector, effector_settings.shape, effector_settings.type)
+    if effector_settings.type == EFFECTOR_TYPE_SHADER:
+        effector.empty_display_size = effector_settings.shader_width
+        effector.empty_image_offset = (-0.5, -0.5)
 
     modifier_inputs.set_modifier_input(modifier, sockets["object"], effector)
     modifier_inputs.set_modifier_input(
@@ -292,12 +345,21 @@ def sync_effector_slot(settings, modifier, slot_index: int) -> None:
     for key in EFFECTOR_GLOBAL_KEYS:
         if key == "shape":
             continue
-        value = (
-            effector_type_value(effector_settings.type)
-            if key == "type"
-            else getattr(effector_settings, key)
-        )
+        if key == "type":
+            value = effector_type_value(effector_settings.type)
+        elif key in {"target_axis", "target_up_axis"}:
+            value = target_axis_value(getattr(effector_settings, key))
+        elif key == "shader_projection":
+            value = shader_projection_value(effector_settings.shader_projection)
+        else:
+            value = getattr(effector_settings, key)
         modifier_inputs.set_modifier_input(modifier, sockets[key], value)
+
+    modifier_inputs.set_modifier_input(
+        modifier,
+        sockets["use_target_object"],
+        effector_settings.target_object is not None,
+    )
 
     combined_strength = (
         effector_settings.strength

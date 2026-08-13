@@ -204,8 +204,12 @@ def _draw_effector_guides(batch_for_shader, shader, settings, slot, *, selected:
         effector_settings is not None
         and effector_settings.shape == effectors.FIELD_SHAPE_CUBE
     ):
-        outer = _box_lines(effector.matrix_world, outer_radius)
-        inner = _box_lines(effector.matrix_world, inner_radius)
+        outer_size = Vector(
+            (effector_settings.box_x, effector_settings.box_y, effector_settings.box_z)
+        )
+        inner_size = outer_size * min(1.0, max(0.0, falloff / 100.0))
+        outer = _box_lines(effector.matrix_world, outer_size * 0.5)
+        inner = _box_lines(effector.matrix_world, inner_size * 0.5)
     elif (
         effector_settings is not None
         and effector_settings.shape == effectors.FIELD_SHAPE_CYLINDER
@@ -272,15 +276,15 @@ def _sphere_lines(
     return lines
 
 
-def _box_lines(matrix, half_extent: float) -> list[tuple[float, float, float]]:
-    if half_extent <= 0.0:
+def _box_lines(matrix, half_extent: Vector) -> list[tuple[float, float, float]]:
+    if min(half_extent) <= 0.0:
         return []
 
     corners = [
         Vector((x, y, z))
-        for x in (-half_extent, half_extent)
-        for y in (-half_extent, half_extent)
-        for z in (-half_extent, half_extent)
+        for x in (-half_extent.x, half_extent.x)
+        for y in (-half_extent.y, half_extent.y)
+        for z in (-half_extent.z, half_extent.z)
     ]
     world = [matrix @ corner for corner in corners]
     lines = []

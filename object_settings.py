@@ -242,6 +242,8 @@ def _sync_effector_slot_value(
         if socket_key == "strength"
         else effectors.effector_type_value(value)
         if socket_key == "type"
+        else effectors.target_axis_value(value)
+        if socket_key in {"target_axis", "target_up_axis"}
         else value
     )
     object_property = _effector_slot_property_name(slot_index, "object")
@@ -270,6 +272,12 @@ def _sync_effector_slot_value(
         properties.EFFECTOR_SOCKET_SETS[slot_index][socket_key],
         modifier_value,
     )
+    if socket_key == "target_object":
+        _sync_modifier_value(
+            self,
+            properties.EFFECTOR_SOCKET_SETS[slot_index]["use_target_object"],
+            value is not None,
+        )
     if socket_key == "object":
         enabled_property = _effector_slot_property_name(slot_index, "enabled")
         setattr(self, enabled_property, value is not None)
@@ -565,9 +573,34 @@ def _combined_effector_strength(self, slot_index: int, cloner_strength: int) -> 
 
 def _sync_effector_settings(self, context) -> None:
     obj = self.id_data
+    if self.type == effectors.EFFECTOR_TYPE_SHADER:
+        obj.data = self.shader_image
     effectors.configure_effector_object(obj, self.shape, self.radius, self.type)
     effectors.rename_effector_object(obj, self.shape, self.type)
     effectors.sync_effector_to_referencing_cloners(obj)
+
+
+def _sync_shader_image(self, context) -> None:
+    image = self.shader_image
+    if image is not None and image.size[0] > 0 and image.size[1] > 0:
+        self.shader_height = self.shader_width * image.size[1] / image.size[0]
+    _sync_effector_settings(self, context)
+
+
+def _sync_box_dimension(self, context, property_name: str) -> None:
+    if self.box_uniform:
+        value = getattr(self, property_name)
+        for name in ("box_x", "box_y", "box_z"):
+            if name != property_name and getattr(self, name) != value:
+                setattr(self, name, value)
+    _sync_effector_settings(self, context)
+
+
+def _sync_box_uniform(self, context) -> None:
+    if self.box_uniform:
+        self.box_y = self.box_x
+        self.box_z = self.box_x
+    _sync_effector_settings(self, context)
 
 
 def _sync_effector_radius_setting(self, context) -> None:
@@ -619,6 +652,35 @@ class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
         subtype="DISTANCE",
         unit="LENGTH",
         update=_sync_effector_radius_setting,
+    )
+    box_x: FloatProperty(
+        name="X",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_BOX_X],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=lambda self, context: _sync_box_dimension(self, context, "box_x"),
+    )
+    box_y: FloatProperty(
+        name="Y",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_BOX_Y],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=lambda self, context: _sync_box_dimension(self, context, "box_y"),
+    )
+    box_z: FloatProperty(
+        name="Z",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_BOX_Z],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=lambda self, context: _sync_box_dimension(self, context, "box_z"),
+    )
+    box_uniform: BoolProperty(
+        name="Uniform",
+        default=True,
+        update=_sync_box_uniform,
     )
     height: FloatProperty(
         name="Height",
@@ -691,6 +753,52 @@ class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
         name=properties.SOCKET_EFFECTOR_ROTATION_Z,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_ROTATION_Z],
         subtype="ANGLE",
+        update=_sync_effector_settings,
+    )
+    target_axis: EnumProperty(
+        name="Aim Axis",
+        items=effectors.TARGET_AXIS_ITEMS,
+        default="Z",
+        update=_sync_effector_settings,
+    )
+    target_up_axis: EnumProperty(
+        name="Up Axis",
+        items=effectors.TARGET_AXIS_ITEMS,
+        default="Y",
+        update=_sync_effector_settings,
+    )
+    target_object: PointerProperty(
+        name="Target",
+        description="Optional object to aim at; when empty, use the Effector itself",
+        type=bpy.types.Object,
+        update=_sync_effector_settings,
+    )
+    shader_image: PointerProperty(
+        name="Image",
+        description="Image whose luminance controls the Effector",
+        type=bpy.types.Image,
+        update=_sync_shader_image,
+    )
+    shader_projection: EnumProperty(
+        name="Projection",
+        items=effectors.SHADER_PROJECTION_ITEMS,
+        default="PLANAR",
+        update=_sync_effector_settings,
+    )
+    shader_width: FloatProperty(
+        name="Width",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SHADER_WIDTH],
+        min=0.001,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_effector_settings,
+    )
+    shader_height: FloatProperty(
+        name="Height",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SHADER_HEIGHT],
+        min=0.001,
+        subtype="DISTANCE",
+        unit="LENGTH",
         update=_sync_effector_settings,
     )
     use_scale: BoolProperty(
@@ -832,6 +940,23 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         subtype="ANGLE",
         update=_sync_effector_rotation_z,
     )
+    effector_target_axis: EnumProperty(
+        name="Aim Axis",
+        items=effectors.TARGET_AXIS_ITEMS,
+        default="Z",
+        update=lambda self, context: _sync_effector_slot_value(self, 0, "target_axis", "effector_target_axis"),
+    )
+    effector_target_up_axis: EnumProperty(
+        name="Up Axis",
+        items=effectors.TARGET_AXIS_ITEMS,
+        default="Y",
+        update=lambda self, context: _sync_effector_slot_value(self, 0, "target_up_axis", "effector_target_up_axis"),
+    )
+    effector_target_object: PointerProperty(
+        name="Target",
+        type=bpy.types.Object,
+        update=lambda self, context: _sync_effector_slot_value(self, 0, "target_object", "effector_target_object"),
+    )
     effector_use_scale: BoolProperty(
         name="Scale",
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_USE_SCALE],
@@ -962,6 +1087,23 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         subtype="ANGLE",
         update=lambda self, context: _sync_effector_slot_value(self, 1, "rotation_z", "effector2_rotation_z"),
     )
+    effector2_target_axis: EnumProperty(
+        name="Aim Axis",
+        items=effectors.TARGET_AXIS_ITEMS,
+        default="Z",
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "target_axis", "effector2_target_axis"),
+    )
+    effector2_target_up_axis: EnumProperty(
+        name="Up Axis",
+        items=effectors.TARGET_AXIS_ITEMS,
+        default="Y",
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "target_up_axis", "effector2_target_up_axis"),
+    )
+    effector2_target_object: PointerProperty(
+        name="Target",
+        type=bpy.types.Object,
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "target_object", "effector2_target_object"),
+    )
     effector2_use_scale: BoolProperty(
         name="Scale",
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_USE_SCALE],
@@ -1091,6 +1233,23 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_ROTATION_Z],
         subtype="ANGLE",
         update=lambda self, context: _sync_effector_slot_value(self, 2, "rotation_z", "effector3_rotation_z"),
+    )
+    effector3_target_axis: EnumProperty(
+        name="Aim Axis",
+        items=effectors.TARGET_AXIS_ITEMS,
+        default="Z",
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "target_axis", "effector3_target_axis"),
+    )
+    effector3_target_up_axis: EnumProperty(
+        name="Up Axis",
+        items=effectors.TARGET_AXIS_ITEMS,
+        default="Y",
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "target_up_axis", "effector3_target_up_axis"),
+    )
+    effector3_target_object: PointerProperty(
+        name="Target",
+        type=bpy.types.Object,
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "target_object", "effector3_target_object"),
     )
     effector3_use_scale: BoolProperty(
         name="Scale",

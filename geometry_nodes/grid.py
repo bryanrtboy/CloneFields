@@ -136,6 +136,43 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         "INPUT",
         "NodeSocketObject",
     )
+    _new_socket(
+        interface,
+        properties.SOCKET_EFFECTOR_TARGET_OBJECT,
+        "INPUT",
+        "NodeSocketObject",
+    )
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_EFFECTOR_USE_TARGET_OBJECT,
+        "INPUT",
+        "NodeSocketBool",
+        parent=effector_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_USE_TARGET_OBJECT
+    ]
+    _new_socket(interface, properties.SOCKET_EFFECTOR_SHADER_IMAGE, "INPUT", "NodeSocketImage")
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_EFFECTOR_SHADER_PROJECTION,
+        "INPUT",
+        "NodeSocketInt",
+        parent=effector_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_SHADER_PROJECTION
+    ]
+    socket.min_value = 0
+    socket.max_value = 1
+    for name in (
+        properties.SOCKET_EFFECTOR_SHADER_WIDTH,
+        properties.SOCKET_EFFECTOR_SHADER_HEIGHT,
+    ):
+        socket = _new_socket(interface, name, "INPUT", "NodeSocketFloat", parent=effector_panel)
+        socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
+        socket.min_value = 0.001
+        socket.subtype = "DISTANCE"
     socket = _new_socket(
         interface,
         properties.SOCKET_EFFECTOR_TYPE,
@@ -145,7 +182,7 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     )
     socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_TYPE]
     socket.min_value = 0
-    socket.max_value = 1
+    socket.max_value = 3
     socket = _new_socket(
         interface,
         properties.SOCKET_EFFECTOR_FIELD,
@@ -227,6 +264,15 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_LENGTH]
     socket.min_value = 0.0
     socket.subtype = "DISTANCE"
+    for name in (
+        properties.SOCKET_EFFECTOR_BOX_X,
+        properties.SOCKET_EFFECTOR_BOX_Y,
+        properties.SOCKET_EFFECTOR_BOX_Z,
+    ):
+        socket = _new_socket(interface, name, "INPUT", "NodeSocketFloat", parent=effector_panel)
+        socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
+        socket.min_value = 0.0
+        socket.subtype = "DISTANCE"
     socket = _new_socket(
         interface,
         properties.SOCKET_EFFECTOR_FALLOFF,
@@ -292,6 +338,15 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         )
         socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
         socket.subtype = "ANGLE"
+
+    for name in (
+        properties.SOCKET_EFFECTOR_TARGET_AXIS,
+        properties.SOCKET_EFFECTOR_TARGET_UP_AXIS,
+    ):
+        socket = _new_socket(interface, name, "INPUT", "NodeSocketInt", parent=effector_panel)
+        socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
+        socket.min_value = 0
+        socket.max_value = 2
 
     socket = _new_socket(
         interface,
@@ -451,7 +506,7 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     )
     socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_RADIAL_AXIS]
     socket.min_value = 0
-    socket.max_value = 2
+    socket.max_value = 3
 
     socket = _new_socket(
         interface,
@@ -1034,10 +1089,21 @@ def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> 
     )
 
     _new_socket(interface, socket_set["object"], "INPUT", "NodeSocketObject")
+    _new_socket(interface, socket_set["target_object"], "INPUT", "NodeSocketObject")
+    socket = _new_socket(
+        interface,
+        socket_set["use_target_object"],
+        "INPUT",
+        "NodeSocketBool",
+        parent=panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        socket_set["use_target_object"]
+    ]
     socket = _new_socket(interface, socket_set["type"], "INPUT", "NodeSocketInt", parent=panel)
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["type"]]
     socket.min_value = 0
-    socket.max_value = 1
+    socket.max_value = 2
     socket = _new_socket(interface, socket_set["field"], "INPUT", "NodeSocketInt", parent=panel)
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["field"]]
     socket.min_value = 0
@@ -1065,6 +1131,21 @@ def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> 
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["length"]]
     socket.min_value = 0.0
     socket.subtype = "DISTANCE"
+    for name in (socket_set["box_x"], socket_set["box_y"], socket_set["box_z"]):
+        socket = _new_socket(interface, name, "INPUT", "NodeSocketFloat", parent=panel)
+        socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
+        socket.min_value = 0.0
+        socket.subtype = "DISTANCE"
+    _new_socket(interface, socket_set["shader_image"], "INPUT", "NodeSocketImage")
+    socket = _new_socket(interface, socket_set["shader_projection"], "INPUT", "NodeSocketInt", parent=panel)
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["shader_projection"]]
+    socket.min_value = 0
+    socket.max_value = 1
+    for name in (socket_set["shader_width"], socket_set["shader_height"]):
+        socket = _new_socket(interface, name, "INPUT", "NodeSocketFloat", parent=panel)
+        socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
+        socket.min_value = 0.001
+        socket.subtype = "DISTANCE"
     socket = _new_socket(interface, socket_set["falloff"], "INPUT", "NodeSocketFloat", parent=panel)
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["falloff"]]
     socket.min_value = 0.0
@@ -1096,6 +1177,12 @@ def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> 
         socket = _new_socket(interface, name, "INPUT", "NodeSocketFloat", parent=rotation_panel)
         socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
         socket.subtype = "ANGLE"
+
+    for name in (socket_set["target_axis"], socket_set["target_up_axis"]):
+        socket = _new_socket(interface, name, "INPUT", "NodeSocketInt", parent=panel)
+        socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
+        socket.min_value = 0
+        socket.max_value = 2
 
     socket = _new_socket(
         interface,
@@ -1455,6 +1542,8 @@ def _build_radial_axis_distribution(
             set_position,
             "Geometry",
             (x + 1840, y + 220),
+            rotation_switch,
+            "Output",
         )
     )
     _link(links, points_node, points_socket, instance, "Points")
@@ -1472,10 +1561,7 @@ def _build_radial_axis_distribution(
     _link(links, angle, "Value", rotation, "Angle")
     _link(links, group_input, properties.SOCKET_RADIAL_ALIGN, rotation_switch, "Switch")
     _link(links, rotation, "Rotation", rotation_switch, "True")
-    combined_rotation = _new_node(nodes, "FunctionNodeRotateRotation", (x + 2140, y - 300))
-    _link(links, rotation_switch, "Output", combined_rotation, "Rotation")
-    _link(links, effector_rotation_node, effector_rotation_socket, combined_rotation, "Rotate By")
-    _link(links, combined_rotation, "Rotation", instance, "Rotation")
+    _link(links, effector_rotation_node, effector_rotation_socket, instance, "Rotation")
 
     return instance, "Instances"
 
@@ -1787,14 +1873,13 @@ def _build_object_distribution(
             capture_direction,
             "Geometry",
             (x + 1340, y + 420),
+            alignment_rotation,
+            "Output",
         )
     )
-    combined_rotation = _new_node(nodes, "FunctionNodeRotateRotation", (x + 1840, y + 120))
-    _link(links, alignment_rotation, "Output", combined_rotation, "Rotation")
-    _link(links, effector_rotation_node, effector_rotation_socket, combined_rotation, "Rotate By")
     _link(links, points_node, points_socket, instance, "Points")
     _link(links, source_node, source_socket, instance, "Instance")
-    _link(links, combined_rotation, "Rotation", instance, "Rotation")
+    _link(links, effector_rotation_node, effector_rotation_socket, instance, "Rotation")
     _link(links, scale_node, scale_socket, instance, "Scale")
     _configure_instance_picker(
         nodes,
@@ -1814,6 +1899,8 @@ def _build_all_plain_effector_points(
     points_node,
     points_socket: str,
     origin: tuple[int, int],
+    base_rotation_node=None,
+    base_rotation_socket: str | None = None,
 ) -> tuple:
     if group_input is None:
         return _build_identity_instance_transform(
@@ -1828,6 +1915,8 @@ def _build_all_plain_effector_points(
     group_node = _new_node(nodes, "GeometryNodeGroup", origin)
     group_node.node_tree = effector_group
     _link(links, points_node, points_socket, group_node, properties.SOCKET_GEOMETRY)
+    if base_rotation_node is not None and base_rotation_socket is not None:
+        _link(links, base_rotation_node, base_rotation_socket, group_node, "Base Rotation")
     for socket_set in properties.EFFECTOR_SOCKET_SETS:
         for socket_name in socket_set.values():
             if socket_name in group_node.inputs:
@@ -1861,6 +1950,7 @@ def _get_or_create_effector_stack_node_group() -> bpy.types.GeometryNodeTree:
     )
     interface = node_group.interface
     _new_socket(interface, properties.SOCKET_GEOMETRY, "INPUT", "NodeSocketGeometry")
+    _new_socket(interface, "Base Rotation", "INPUT", "NodeSocketRotation")
     _new_socket(interface, properties.SOCKET_GEOMETRY, "OUTPUT", "NodeSocketGeometry")
     _new_socket(interface, "Rotation", "OUTPUT", "NodeSocketRotation")
     _new_socket(interface, "Scale", "OUTPUT", "NodeSocketVector")
@@ -1879,8 +1969,8 @@ def _create_effector_stack_nodes(node_group: bpy.types.GeometryNodeTree) -> None
 
     current_node = group_input
     current_socket = properties.SOCKET_GEOMETRY
-    rotation_node = None
-    rotation_socket = None
+    rotation_node = group_input
+    rotation_socket = "Base Rotation"
     scale_node = None
     scale_socket = None
     for index, socket_set in enumerate(properties.EFFECTOR_SOCKET_SETS):
@@ -1893,27 +1983,12 @@ def _create_effector_stack_nodes(node_group: bpy.types.GeometryNodeTree) -> None
                 current_socket,
                 (-2800, 700 - (index * 760)),
                 socket_set,
+                rotation_node,
+                rotation_socket,
             )
         )
-        if rotation_node is None:
-            rotation_node = slot_rotation_node
-            rotation_socket = slot_rotation_socket
-        else:
-            compose_rotation = _new_node(
-                nodes,
-                "FunctionNodeRotateRotation",
-                (200, 700 - (index * 180)),
-            )
-            _link(links, rotation_node, rotation_socket, compose_rotation, "Rotation")
-            _link(
-                links,
-                slot_rotation_node,
-                slot_rotation_socket,
-                compose_rotation,
-                "Rotate By",
-            )
-            rotation_node = compose_rotation
-            rotation_socket = "Rotation"
+        rotation_node = slot_rotation_node
+        rotation_socket = slot_rotation_socket
         if scale_node is None:
             scale_node = slot_scale_node
             scale_socket = slot_scale_socket
@@ -1940,10 +2015,15 @@ def _build_plain_effector_points(
     points_socket: str,
     origin: tuple[int, int],
     socket_set: dict,
+    base_rotation_node,
+    base_rotation_socket: str,
 ) -> tuple:
     x, y = origin
     object_info = _new_node(nodes, "GeometryNodeObjectInfo", (x, y))
     object_info.transform_space = "RELATIVE"
+    target_info = _new_node(nodes, "GeometryNodeObjectInfo", (x, y + 180))
+    target_info.transform_space = "RELATIVE"
+    target_location = _new_vector_switch_node(nodes, (x + 240, y + 180))
     position = _new_node(nodes, "GeometryNodeInputPosition", (x, y - 170))
     distance = _new_vector_math_node(nodes, (x + 260, y - 80), "DISTANCE")
     local_offset = _new_vector_math_node(nodes, (x + 260, y - 250), "SUBTRACT")
@@ -1951,6 +2031,11 @@ def _build_plain_effector_points(
     local_position = _new_node(nodes, "FunctionNodeRotateVector", (x + 500, y - 300))
     absolute_local = _new_vector_math_node(nodes, (x + 740, y - 300), "ABSOLUTE")
     separate_local = _new_node(nodes, "ShaderNodeSeparateXYZ", (x + 980, y - 300))
+    box_size = _new_combine_xyz_node(nodes, (x + 980, y - 460))
+    box_half_size = _new_vector_math_node(nodes, (x + 1220, y - 460), "SCALE")
+    safe_box_half_size = _new_vector_math_node(nodes, (x + 1460, y - 460), "MAXIMUM")
+    normalized_box = _new_vector_math_node(nodes, (x + 1700, y - 460), "DIVIDE")
+    separate_box = _new_node(nodes, "ShaderNodeSeparateXYZ", (x + 1940, y - 460))
     local_xy = _new_combine_xyz_node(nodes, (x + 1220, y - 620))
     radial_distance = _new_vector_math_node(nodes, (x + 1460, y - 620), "LENGTH")
     safe_radius = _new_math_node(nodes, (x + 1700, y - 620), "MAXIMUM")
@@ -1963,8 +2048,8 @@ def _build_plain_effector_points(
     half_length = _new_math_node(nodes, (x + 1220, y - 920), "MULTIPLY")
     safe_half_length = _new_math_node(nodes, (x + 1460, y - 920), "MAXIMUM")
     linear_distance = _new_math_node(nodes, (x + 1700, y - 920), "MINIMUM")
-    max_xy = _new_math_node(nodes, (x + 1220, y - 300), "MAXIMUM")
-    cubic_distance = _new_math_node(nodes, (x + 1460, y - 300), "MAXIMUM")
+    max_xy = _new_math_node(nodes, (x + 2180, y - 460), "MAXIMUM")
+    cubic_distance = _new_math_node(nodes, (x + 2420, y - 460), "MAXIMUM")
     is_cubic = _new_math_node(nodes, (x + 1220, y - 520), "COMPARE")
     is_cylinder = _new_math_node(nodes, (x + 1460, y - 520), "COMPARE")
     is_linear = _new_math_node(nodes, (x + 1700, y - 520), "COMPARE")
@@ -1973,6 +2058,7 @@ def _build_plain_effector_points(
     volume_distance = _new_float_switch_node(nodes, (x + 1940, y - 220))
     field_distance = _new_float_switch_node(nodes, (x + 2180, y - 220))
     field_size = _new_float_switch_node(nodes, (x + 2180, y - 360))
+    cubic_field_size = _new_float_switch_node(nodes, (x + 2420, y - 360))
     radius_minus_distance = _new_math_node(nodes, (x + 500, y - 80), "SUBTRACT")
     falloff_percent = _new_math_node(nodes, (x + 500, y - 360), "MULTIPLY")
     falloff_range_factor = _new_math_node(nodes, (x + 740, y - 360), "SUBTRACT")
@@ -1988,6 +2074,34 @@ def _build_plain_effector_points(
     rotation_weight = _new_float_switch_node(nodes, (x + 2180, y + 620))
     scale_weight = _new_float_switch_node(nodes, (x + 2180, y + 340))
     is_random = _new_math_node(nodes, (x + 1940, y + 60), "COMPARE")
+    is_target = _new_math_node(nodes, (x + 1940, y + 180), "COMPARE")
+    is_shader = _new_math_node(nodes, (x + 1940, y + 300), "COMPARE")
+    image_texture = _new_node(nodes, "GeometryNodeImageTexture", (x + 1220, y + 1040))
+    image_texture.extension = "CLIP"
+    image_texture.interpolation = "Linear"
+    shader_size = _new_combine_xyz_node(nodes, (x + 740, y + 1040))
+    shader_uv = _new_vector_math_node(nodes, (x + 1220, y + 1180), "DIVIDE")
+    shader_center = _new_vector_math_node(nodes, (x + 1460, y + 1180), "ADD")
+    shader_abs = _new_vector_math_node(nodes, (x + 1460, y + 1320), "ABSOLUTE")
+    shader_separate = _new_node(nodes, "ShaderNodeSeparateXYZ", (x + 1700, y + 1320))
+    shader_abs_separate = _new_node(nodes, "ShaderNodeSeparateXYZ", (x + 1700, y + 1680))
+    shader_xy = _new_combine_xyz_node(nodes, (x + 1940, y + 1320))
+    shader_yz = _new_combine_xyz_node(nodes, (x + 1940, y + 1440))
+    shader_xz = _new_combine_xyz_node(nodes, (x + 1940, y + 1560))
+    shader_yz_max = _new_math_node(nodes, (x + 1940, y + 1800), "MAXIMUM")
+    shader_xz_max = _new_math_node(nodes, (x + 2180, y + 1800), "MAXIMUM")
+    x_dominant = _new_math_node(nodes, (x + 1940, y + 1680), "GREATER_THAN")
+    y_dominant = _new_math_node(nodes, (x + 2180, y + 1680), "GREATER_THAN")
+    yz_or_xy = _new_vector_switch_node(nodes, (x + 2180, y + 1440))
+    cubic_uv = _new_vector_switch_node(nodes, (x + 2420, y + 1440))
+    cubic_center = _new_vector_math_node(nodes, (x + 2660, y + 1440), "ADD")
+    projection_uv = _new_vector_switch_node(nodes, (x + 2660, y + 1320))
+    shader_channels = _new_node(nodes, "FunctionNodeSeparateColor", (x + 1700, y + 1040))
+    shader_rg = _new_math_node(nodes, (x + 1940, y + 920), "ADD")
+    shader_rgb = _new_math_node(nodes, (x + 2180, y + 920), "ADD")
+    shader_luminance = _new_math_node(nodes, (x + 2420, y + 920), "MULTIPLY")
+    shader_weight = _new_float_switch_node(nodes, (x + 1940, y + 1040))
+    weighted_strength = _new_math_node(nodes, (x + 2180, y + 1040), "MULTIPLY")
     index = _new_node(nodes, "GeometryNodeInputIndex", (x + 980, y + 980))
 
     offset = _new_combine_xyz_node(nodes, (x + 980, y + 160))
@@ -2019,6 +2133,20 @@ def _build_plain_effector_points(
         "SCALE",
     )
     weighted_rotation = _new_node(nodes, "FunctionNodeEulerToRotation", (x + 2660, y + 700))
+    basic_rotation = _new_node(nodes, "FunctionNodeRotateRotation", (x + 2900, y + 700))
+    target_rotation = _build_target_rotation_nodes(
+        nodes,
+        links,
+        group_input,
+        socket_set,
+        base_rotation_node,
+        base_rotation_socket,
+        target_location,
+        position,
+        rotation_weight,
+        (x + 2420, y + 980),
+    )
+    rotation_type_switch = _new_rotation_switch_node(nodes, (x + 3380, y + 760))
 
     safe_falloff.inputs[1].default_value = 0.000001
     falloff_weight.use_clamp = True
@@ -2038,6 +2166,16 @@ def _build_plain_effector_points(
     is_none.inputs[2].default_value = 0.001
     is_random.inputs[1].default_value = 1.0
     is_random.inputs[2].default_value = 0.001
+    is_target.inputs[1].default_value = 2.0
+    is_target.inputs[2].default_value = 0.001
+    is_shader.inputs[1].default_value = 3.0
+    is_shader.inputs[2].default_value = 0.001
+    box_half_size.inputs["Scale"].default_value = 0.5
+    safe_box_half_size.inputs[1].default_value = (0.000001, 0.000001, 0.000001)
+    shader_center.inputs[1].default_value = (0.5, 0.5, 0.5)
+    cubic_center.inputs[1].default_value = (0.5, 0.5, 0.5)
+    shader_luminance.inputs[1].default_value = 1.0 / 3.0
+    cubic_field_size.inputs["True"].default_value = 1.0
     inverted_weight.inputs[0].default_value = 1.0
     falloff_range_factor.inputs[0].default_value = 1.0
     one_scale.inputs["X"].default_value = 1.0
@@ -2046,11 +2184,23 @@ def _build_plain_effector_points(
     min_scale_floor.inputs["X"].default_value = 0.001
     min_scale_floor.inputs["Y"].default_value = 0.001
     min_scale_floor.inputs["Z"].default_value = 0.001
+    _link(links, group_input, socket_set["object"], object_info, "Object")
+    _link(links, group_input, socket_set["target_object"], target_info, "Object")
+    _link(
+        links,
+        group_input,
+        socket_set["use_target_object"],
+        target_location,
+        "Switch",
+    )
+    links.new(object_info.outputs["Location"], target_location.inputs["False"])
+    links.new(target_info.outputs["Location"], target_location.inputs["True"])
     negative_offset.inputs["Scale"].default_value = -1.0
     negative_rotation.inputs["Scale"].default_value = -1.0
 
-    _link(links, group_input, socket_set["object"], object_info, "Object")
     _link(links, group_input, socket_set["type"], is_random, "Value")
+    _link(links, group_input, socket_set["type"], is_target, "Value")
+    _link(links, group_input, socket_set["type"], is_shader, "Value")
     _link(links, position, "Position", distance, "Vector")
     links.new(object_info.outputs["Location"], distance.inputs[1])
     _link(links, position, "Position", local_offset, "Vector")
@@ -2060,6 +2210,14 @@ def _build_plain_effector_points(
     links.new(inverse_rotation.outputs["Rotation"], local_position.inputs["Rotation"])
     _link(links, local_position, "Vector", absolute_local, "Vector")
     _link(links, absolute_local, "Vector", separate_local, "Vector")
+    _link(links, group_input, socket_set["box_x"], box_size, "X")
+    _link(links, group_input, socket_set["box_y"], box_size, "Y")
+    _link(links, group_input, socket_set["box_z"], box_size, "Z")
+    _link(links, box_size, "Vector", box_half_size, "Vector")
+    _link(links, box_half_size, "Vector", safe_box_half_size, "Vector")
+    _link(links, absolute_local, "Vector", normalized_box, "Vector")
+    links.new(safe_box_half_size.outputs["Vector"], normalized_box.inputs[1])
+    _link(links, normalized_box, "Vector", separate_box, "Vector")
     links.new(separate_local.outputs["X"], local_xy.inputs["X"])
     links.new(separate_local.outputs["Y"], local_xy.inputs["Y"])
     _link(links, local_xy, "Vector", radial_distance, "Vector")
@@ -2078,10 +2236,10 @@ def _build_plain_effector_points(
     _link(links, half_length, "Value", safe_half_length, "Value")
     links.new(separate_local.outputs["X"], linear_distance.inputs["Value"])
     links.new(safe_half_length.outputs["Value"], linear_distance.inputs[1])
-    links.new(separate_local.outputs["X"], max_xy.inputs["Value"])
-    links.new(separate_local.outputs["Y"], max_xy.inputs[1])
+    links.new(separate_box.outputs["X"], max_xy.inputs["Value"])
+    links.new(separate_box.outputs["Y"], max_xy.inputs[1])
     _link(links, max_xy, "Value", cubic_distance, "Value")
-    links.new(separate_local.outputs["Z"], cubic_distance.inputs[1])
+    links.new(separate_box.outputs["Z"], cubic_distance.inputs[1])
     _link(links, group_input, socket_set["field"], is_cubic, "Value")
     _link(links, group_input, socket_set["field"], is_cylinder, "Value")
     _link(links, group_input, socket_set["field"], is_linear, "Value")
@@ -2098,14 +2256,16 @@ def _build_plain_effector_points(
     _link(links, is_linear, "Value", field_size, "Switch")
     links.new(_socket(group_input.outputs, socket_set["radius"]), field_size.inputs["False"])
     links.new(safe_half_length.outputs["Value"], field_size.inputs["True"])
+    _link(links, is_cubic, "Value", cubic_field_size, "Switch")
+    _link(links, field_size, "Output", cubic_field_size, "False")
     links.new(
         _socket(group_input.outputs, socket_set["falloff"]),
         falloff_percent.inputs["Value"],
     )
     links.new(falloff_percent.outputs["Value"], falloff_range_factor.inputs[1])
-    links.new(field_size.outputs["Output"], scaled_falloff.inputs["Value"])
+    links.new(cubic_field_size.outputs["Output"], scaled_falloff.inputs["Value"])
     links.new(falloff_range_factor.outputs["Value"], scaled_falloff.inputs[1])
-    links.new(field_size.outputs["Output"], radius_minus_distance.inputs["Value"])
+    links.new(cubic_field_size.outputs["Output"], radius_minus_distance.inputs["Value"])
     links.new(field_distance.outputs["Output"], radius_minus_distance.inputs[1])
     _link(links, scaled_falloff, "Value", safe_falloff, "Value")
     _link(links, radius_minus_distance, "Value", falloff_weight, "Value")
@@ -2122,8 +2282,54 @@ def _build_plain_effector_points(
         _socket(group_input.outputs, socket_set["strength"]),
         strength.inputs[1],
     )
+    _link(links, group_input, socket_set["shader_image"], image_texture, "Image")
+    _link(links, group_input, socket_set["shader_width"], shader_size, "X")
+    _link(links, group_input, socket_set["shader_height"], shader_size, "Y")
+    _link(links, group_input, socket_set["shader_width"], shader_size, "Z")
+    _link(links, local_position, "Vector", shader_uv, "Vector")
+    links.new(shader_size.outputs["Vector"], shader_uv.inputs[1])
+    _link(links, shader_uv, "Vector", shader_center, "Vector")
+    _link(links, shader_uv, "Vector", shader_abs, "Vector")
+    _link(links, shader_uv, "Vector", shader_separate, "Vector")
+    _link(links, shader_abs, "Vector", shader_abs_separate, "Vector")
+    links.new(shader_separate.outputs["X"], shader_xy.inputs["X"])
+    links.new(shader_separate.outputs["Y"], shader_xy.inputs["Y"])
+    links.new(shader_separate.outputs["Y"], shader_yz.inputs["X"])
+    links.new(shader_separate.outputs["Z"], shader_yz.inputs["Y"])
+    links.new(shader_separate.outputs["X"], shader_xz.inputs["X"])
+    links.new(shader_separate.outputs["Z"], shader_xz.inputs["Y"])
+    links.new(shader_abs_separate.outputs["Y"], shader_yz_max.inputs["Value"])
+    links.new(shader_abs_separate.outputs["Z"], shader_yz_max.inputs[1])
+    links.new(shader_abs_separate.outputs["X"], shader_xz_max.inputs["Value"])
+    links.new(shader_abs_separate.outputs["Z"], shader_xz_max.inputs[1])
+    links.new(shader_abs_separate.outputs["X"], x_dominant.inputs["Value"])
+    _link(links, shader_yz_max, "Value", x_dominant, "Value_001")
+    links.new(shader_abs_separate.outputs["Y"], y_dominant.inputs["Value"])
+    _link(links, shader_xz_max, "Value", y_dominant, "Value_001")
+    _link(links, y_dominant, "Value", yz_or_xy, "Switch")
+    _link(links, shader_xy, "Vector", yz_or_xy, "False")
+    _link(links, shader_xz, "Vector", yz_or_xy, "True")
+    _link(links, x_dominant, "Value", cubic_uv, "Switch")
+    _link(links, yz_or_xy, "Output", cubic_uv, "False")
+    _link(links, shader_yz, "Vector", cubic_uv, "True")
+    _link(links, cubic_uv, "Output", cubic_center, "Vector")
+    _link(links, group_input, socket_set["shader_projection"], projection_uv, "Switch")
+    _link(links, shader_center, "Vector", projection_uv, "False")
+    _link(links, cubic_center, "Vector", projection_uv, "True")
+    _link(links, projection_uv, "Output", image_texture, "Vector")
+    links.new(image_texture.outputs["Color"], shader_channels.inputs["Color"])
+    links.new(shader_channels.outputs["Red"], shader_rg.inputs["Value"])
+    links.new(shader_channels.outputs["Green"], shader_rg.inputs[1])
+    _link(links, shader_rg, "Value", shader_rgb, "Value")
+    links.new(shader_channels.outputs["Blue"], shader_rgb.inputs[1])
+    _link(links, shader_rgb, "Value", shader_luminance, "Value")
+    _link(links, is_shader, "Value", shader_weight, "Switch")
+    shader_weight.inputs["False"].default_value = 1.0
+    _link(links, shader_luminance, "Value", shader_weight, "True")
+    _link(links, strength, "Value", weighted_strength, "Value")
+    _link(links, shader_weight, "Output", weighted_strength, "Value_001")
     _link(links, group_input, socket_set["enabled"], enabled_weight, "Switch")
-    _link(links, strength, "Value", enabled_weight, "True")
+    _link(links, weighted_strength, "Value", enabled_weight, "True")
     _link(links, group_input, socket_set["use_position"], position_weight, "Switch")
     _link(links, enabled_weight, "Output", position_weight, "True")
     _link(links, group_input, socket_set["use_rotation"], rotation_weight, "Switch")
@@ -2184,8 +2390,85 @@ def _build_plain_effector_points(
     _link(links, effector_rotation, "Output", weighted_rotation_euler, "Vector")
     _link(links, rotation_weight, "Output", weighted_rotation_euler, "Scale")
     _link(links, weighted_rotation_euler, "Vector", weighted_rotation, "Euler")
+    _link(links, base_rotation_node, base_rotation_socket, basic_rotation, "Rotation")
+    _link(links, weighted_rotation, "Rotation", basic_rotation, "Rotate By")
+    _link(links, is_target, "Value", rotation_type_switch, "Switch")
+    _link(links, basic_rotation, "Rotation", rotation_type_switch, "False")
+    _link(links, target_rotation, "Output", rotation_type_switch, "True")
 
-    return set_position, "Geometry", weighted_rotation, "Rotation", final_scale, "Vector"
+    return set_position, "Geometry", rotation_type_switch, "Output", final_scale, "Vector"
+
+
+def _build_target_rotation_nodes(
+    nodes,
+    links,
+    group_input,
+    socket_set: dict,
+    base_rotation_node,
+    base_rotation_socket: str,
+    target_location,
+    position,
+    weight_node,
+    origin: tuple[int, int],
+):
+    x, y = origin
+    direction = _new_vector_math_node(nodes, (x, y), "SUBTRACT")
+    global_up = _new_combine_xyz_node(nodes, (x, y - 180))
+    target_index_scale = _new_math_node(nodes, (x + 720, y - 260), "MULTIPLY")
+    target_index = _new_math_node(nodes, (x + 960, y - 260), "ADD")
+    rotation_switch = _new_rotation_index_switch_node(nodes, (x + 1200, y), 9)
+
+    global_up.inputs["Z"].default_value = 1.0
+    target_index_scale.inputs[1].default_value = 3.0
+    links.new(target_location.outputs["Output"], direction.inputs[0])
+    links.new(position.outputs["Position"], direction.inputs[1])
+    _link(links, group_input, socket_set["target_axis"], target_index_scale, "Value")
+    _link(links, target_index_scale, "Value", target_index, "Value")
+    links.new(_socket(group_input.outputs, socket_set["target_up_axis"]), target_index.inputs[1])
+    _link(links, target_index, "Value", rotation_switch, "Index")
+
+    axes = ("X", "Y", "Z")
+    for aim_index, aim_axis in enumerate(axes):
+        aim = _new_node(
+            nodes,
+            "FunctionNodeAlignRotationToVector",
+            (x + 240, y + 260 - (aim_index * 220)),
+        )
+        aim.axis = aim_axis
+        aim.pivot_axis = "AUTO"
+        _link(links, base_rotation_node, base_rotation_socket, aim, "Rotation")
+        _link(links, weight_node, "Output", aim, "Factor")
+        _link(links, direction, "Vector", aim, "Vector")
+
+        for up_index, up_axis in enumerate(axes):
+            if up_axis == aim_axis:
+                _link(
+                    links,
+                    aim,
+                    "Rotation",
+                    rotation_switch,
+                    str(aim_index * 3 + up_index),
+                )
+                continue
+            stabilize = _new_node(
+                nodes,
+                "FunctionNodeAlignRotationToVector",
+                (x + 720, y + 500 - ((aim_index * 3 + up_index) * 140)),
+            )
+            stabilize.axis = up_axis
+            stabilize.pivot_axis = aim_axis
+            _link(links, aim, "Rotation", stabilize, "Rotation")
+            _link(links, weight_node, "Output", stabilize, "Factor")
+            _link(links, global_up, "Vector", stabilize, "Vector")
+            _link(
+                links,
+                stabilize,
+                "Rotation",
+                rotation_switch,
+                str(aim_index * 3 + up_index),
+            )
+
+    return rotation_switch
 
 
 def _build_identity_instance_transform(

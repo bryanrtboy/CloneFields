@@ -1001,6 +1001,199 @@ def main() -> None:
             for before, after in zip(seed_7_vertices, seed_19_vertices)
         )
 
+        target_mesh = bpy.data.meshes.new("Target Effector Source Mesh")
+        target_mesh.from_pydata([(0.0, 0.0, 1.0)], [], [])
+        target_mesh.update()
+        target_source = bpy.data.objects.new("Target Effector Source", target_mesh)
+        bpy.context.collection.objects.link(target_source)
+        bpy.context.view_layer.objects.active = target_source
+        target_source.select_set(True)
+        target_result = bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=target_source.name,
+            count_x=1,
+            count_y=1,
+            count_z=1,
+        )
+        assert target_result == {"FINISHED"}, target_result
+        target_cloner = bpy.context.object
+        target_add_result = bpy.ops.clone_fields.add_target_effector("EXEC_DEFAULT")
+        assert target_add_result == {"FINISHED"}, target_add_result
+        target_effector = target_cloner.clone_fields_cloner.effector_object
+        assert target_effector.name.startswith("Target Effector [None]")
+        assert target_effector.get(props.PROP_EFFECTOR_TYPE) == "TARGET"
+        target_settings = target_effector.clone_fields_effector
+        assert target_settings.type == eff.EFFECTOR_TYPE_TARGET
+        assert target_settings.shape == eff.FIELD_SHAPE_NONE
+        assert target_settings.target_axis == "Z"
+        assert target_settings.target_up_axis == "Y"
+        target_effector.location = (3.0, 0.0, 0.0)
+        target_modifier = target_cloner.modifiers["Cloner"]
+        target_cloner.update_tag()
+        target_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        target_vertices = _evaluated_vertices(target_cloner)
+        assert _has_vertex_near(target_vertices, (1.0, 0.0, 0.0), tolerance=0.001)
+        target_settings.strength = 50
+        target_cloner.update_tag()
+        bpy.context.view_layer.update()
+        partial_target_vertices = _evaluated_vertices(target_cloner)
+        expected_partial = Vector((1.0, 0.0, 1.0)).normalized()
+        assert _has_vertex_near(
+            partial_target_vertices,
+            tuple(expected_partial),
+            tolerance=0.001,
+        )
+        target_settings.strength = 100
+        target_effector.location = (0.0, 3.0, 0.0)
+        target_cloner.update_tag()
+        bpy.context.view_layer.update()
+        moved_target_vertices = _evaluated_vertices(target_cloner)
+        assert _has_vertex_near(moved_target_vertices, (0.0, 1.0, 0.0), tolerance=0.001)
+        target_settings.shape = eff.FIELD_SHAPE_SPHERE
+        target_settings.radius = 0.25
+        target_cloner.update_tag()
+        bpy.context.view_layer.update()
+        bounded_target_vertices = _evaluated_vertices(target_cloner)
+        assert _has_vertex_near(bounded_target_vertices, (0.0, 0.0, 1.0), tolerance=0.001)
+
+        target_camera_data = bpy.data.cameras.new("Target Effector Camera Data")
+        target_camera = bpy.data.objects.new("Target Effector Camera", target_camera_data)
+        bpy.context.collection.objects.link(target_camera)
+        target_camera.location = (3.0, 0.0, 0.0)
+        target_effector.location = (0.0, 0.0, 0.0)
+        target_settings.target_object = target_camera
+        target_cloner.update_tag()
+        bpy.context.view_layer.update()
+        camera_target_vertices = _evaluated_vertices(target_cloner)
+        assert _has_vertex_near(camera_target_vertices, (1.0, 0.0, 0.0), tolerance=0.001)
+
+        target_camera.location = (0.0, 3.0, 0.0)
+        bpy.context.view_layer.update()
+        moved_camera_target_vertices = _evaluated_vertices(target_cloner)
+        assert _has_vertex_near(
+            moved_camera_target_vertices,
+            (0.0, 1.0, 0.0),
+            tolerance=0.001,
+        )
+
+        target_settings.target_object = None
+        target_effector.location = (0.0, 3.0, 0.0)
+        target_settings.shape = eff.FIELD_SHAPE_NONE
+        target_settings.target_axis = "X"
+        target_cloner.update_tag()
+        bpy.context.view_layer.update()
+        target_axis_vertices = _evaluated_vertices(target_cloner)
+        assert _has_vertex_near(
+            target_axis_vertices,
+            (1.0, 0.0, 0.0),
+            tolerance=0.001,
+        ), target_axis_vertices
+
+        radial_target_mesh = bpy.data.meshes.new("Radial Target Source Mesh")
+        radial_target_mesh.from_pydata([(0.0, 0.0, 1.0)], [], [])
+        radial_target_mesh.update()
+        radial_target_source = bpy.data.objects.new("Radial Target Source", radial_target_mesh)
+        bpy.context.collection.objects.link(radial_target_source)
+        bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=radial_target_source.name,
+            count_x=1,
+            count_y=1,
+            count_z=1,
+        )
+        radial_target_cloner = bpy.context.object
+        radial_target_cloner.clone_fields_cloner.distribution_mode = "RADIAL"
+        radial_target_cloner.clone_fields_cloner.radial_count = 1
+        radial_target_cloner.clone_fields_cloner.radial_radius = 2.0
+        bpy.ops.clone_fields.add_target_effector("EXEC_DEFAULT")
+        radial_target_effector = radial_target_cloner.clone_fields_cloner.effector_object
+        radial_target_effector.location = (0.0, 0.0, 3.0)
+        radial_target_cloner.update_tag()
+        radial_target_cloner.modifiers["Cloner"].node_group.update_tag()
+        bpy.context.view_layer.update()
+        radial_target_vertices = _evaluated_vertices(radial_target_cloner)
+        expected_radial_target = Vector((-2.0, 0.0, 3.0)).normalized() + Vector((2.0, 0.0, 0.0))
+        assert _has_vertex_near(
+            radial_target_vertices,
+            tuple(expected_radial_target),
+            tolerance=0.001,
+        )
+
+        bpy.ops.mesh.primitive_cube_add(location=(0.0, 0.0, 0.0))
+        shader_source = bpy.context.object
+        shader_source.name = "Shader Effector Source"
+        bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=shader_source.name,
+            count_x=3,
+            count_y=1,
+            count_z=1,
+            spacing_x=2.0,
+        )
+        shader_cloner = bpy.context.object
+        shader_add_result = bpy.ops.clone_fields.add_shader_effector("EXEC_DEFAULT")
+        assert shader_add_result == {"FINISHED"}, shader_add_result
+        shader_effector = shader_cloner.clone_fields_cloner.effector_object
+        shader_settings = shader_effector.clone_fields_effector
+        assert shader_settings.type == eff.EFFECTOR_TYPE_SHADER
+        assert shader_settings.shape == eff.FIELD_SHAPE_NONE
+        assert shader_effector.empty_display_type == "PLAIN_AXES"
+
+        shader_image = bpy.data.images.new("Shader Test", width=2, height=1)
+        shader_image.pixels = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        shader_image.update()
+        shader_settings.shader_width = 6.0
+        shader_settings.shader_image = shader_image
+        assert abs(shader_settings.shader_height - 3.0) < 0.001
+        assert shader_effector.data == shader_image
+        assert shader_effector.empty_display_type == "IMAGE"
+        shader_settings.position_x = 0.0
+        shader_settings.position_y = 0.0
+        shader_settings.position_z = 2.0
+        shader_settings.shader_projection = "PLANAR"
+        shader_cloner.update_tag()
+        bpy.context.view_layer.update()
+        shader_modifier = shader_cloner.modifiers["Cloner"]
+        shader_image_id = inputs.get_modifier_input_identifier(
+            shader_modifier,
+            props.SOCKET_EFFECTOR_SHADER_IMAGE,
+        )
+        assert shader_image_id is not None
+        assert shader_modifier[shader_image_id] == shader_image
+        shader_vertices = _evaluated_vertices(shader_cloner)
+        left_z = [z for x, _y, z in shader_vertices if x < -1.0]
+        right_z = [z for x, _y, z in shader_vertices if x > 1.0]
+        assert left_z and right_z
+        assert max(right_z) - max(left_z) > 1.0, (left_z, right_z)
+        shader_bounds = _evaluated_bounds_size(shader_cloner)
+        assert shader_bounds[2] > 2.5, shader_bounds
+
+        shader_settings.shader_projection = "CUBIC"
+        shader_cloner.update_tag()
+        bpy.context.view_layer.update()
+        cubic_shader_vertices = _evaluated_vertices(shader_cloner)
+        assert cubic_shader_vertices
+
+        shader_settings.type = eff.EFFECTOR_TYPE_BASIC
+        shader_settings.shape = eff.FIELD_SHAPE_CUBE
+        shader_settings.box_uniform = False
+        shader_settings.box_x = 8.0
+        shader_settings.box_y = 2.0
+        shader_settings.box_z = 4.0
+        shader_settings.falloff = 0
+        shader_settings.use_position = True
+        shader_settings.position_z = 1.0
+        shader_cloner.update_tag()
+        bpy.context.view_layer.update()
+        rectangular_box_bounds = _evaluated_bounds_size(shader_cloner)
+        assert rectangular_box_bounds[2] > 1.5, rectangular_box_bounds
+        shader_settings.box_uniform = True
+        shader_settings.box_y = 5.0
+        assert shader_settings.box_x == 5.0
+        assert shader_settings.box_y == 5.0
+        assert shader_settings.box_z == 5.0
+
         bpy.ops.object.select_all(action="DESELECT")
         effector_cloner.select_set(True)
         bpy.context.view_layer.objects.active = effector_cloner

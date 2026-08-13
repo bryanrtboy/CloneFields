@@ -80,7 +80,8 @@ sources.
 
 ### Effectors
 
-Select a Cloner and use `New Basic` or `New Random` in its Clone Fields panel.
+Select a Cloner and use `New Basic`, `New Random`, `New Target`, or `New Shader`
+in its Clone Fields panel.
 Effectors are visible controller objects that can be moved or keyframed.
 
 Field shapes include None, Spherical, Cubic, Cylindrical, and Linear. `None`
@@ -100,6 +101,18 @@ Cloner. Each stack entry has an independent `Cloner Influence`. Global Strength,
 Cloner Influence, and Falloff use 0-100% controls.
 
 Random Effectors add Seed and Position, Rotation, and Scale Variation ranges.
+Shader Effectors use image luminance to control transform strength. Planar
+projection follows the visible image controller and initializes its height from
+the image aspect ratio; Cubic projection applies the image across local box
+faces. Shader Effectors affect transforms only, not clone color or materials.
+Box Fields provide independent X, Y, and Z dimensions with an optional Uniform
+size control.
+Target Effectors orient clones toward their visible controller by default. Set
+the optional `Target` to aim at another scene object, such as a Camera, while
+the controller continues to define the field position and falloff. Choose the
+local Aim Axis and Up Axis. A `None` field targets every clone; other field
+shapes limit the effect with the usual Falloff, Global Strength, and per-Cloner
+Influence controls.
 Effector object scale is locked because Radius, Size, Height, or Length defines
 the field dimensions.
 
@@ -197,10 +210,8 @@ with an explicit migration plan.
 
 ### Future Extension Points
 
-- **Target Effector:** add one implementation to the shared Effector stage and
-  reuse the existing target/up-vector rotation logic.
-- **Shader Effector:** add texture sampling and projection as an Effector type,
-  then combine it with the existing field weight.
+- **Target and Shader extensions:** add richer target/up-vector controls or
+  additional image remapping while preserving the shared Effector stage.
 - **Clones of Clones:** extend source management with cycle-safe Cloner references
   and decide where nested instances are realized. Keep this out of distribution
   builders; it belongs in the Source stage.

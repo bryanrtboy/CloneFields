@@ -107,6 +107,26 @@ class CLONE_FIELDS_OT_add_random_effector(bpy.types.Operator):
         return _add_effector(context, self, effectors.EFFECTOR_TYPE_RANDOM)
 
 
+class CLONE_FIELDS_OT_add_target_effector(bpy.types.Operator):
+    bl_idname = "clone_fields.add_target_effector"
+    bl_label = "Add Target Effector"
+    bl_description = "Add a Target Effector that orients clones toward its controller"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        return _add_effector(context, self, effectors.EFFECTOR_TYPE_TARGET)
+
+
+class CLONE_FIELDS_OT_add_shader_effector(bpy.types.Operator):
+    bl_idname = "clone_fields.add_shader_effector"
+    bl_label = "Add Shader Effector"
+    bl_description = "Add an image-driven Shader Effector to the active Cloner"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        return _add_effector(context, self, effectors.EFFECTOR_TYPE_SHADER)
+
+
 class CLONE_FIELDS_OT_link_existing_effector(bpy.types.Operator):
     bl_idname = "clone_fields.link_existing_effector"
     bl_label = "Link Existing Effector"
@@ -286,6 +306,8 @@ classes = (
     CLONE_FIELDS_OT_add_cloner,
     CLONE_FIELDS_OT_add_plain_effector,
     CLONE_FIELDS_OT_add_random_effector,
+    CLONE_FIELDS_OT_add_target_effector,
+    CLONE_FIELDS_OT_add_shader_effector,
     CLONE_FIELDS_OT_link_existing_effector,
     CLONE_FIELDS_OT_move_plain_effector,
     CLONE_FIELDS_OT_select_plain_effector,
@@ -336,6 +358,12 @@ def _reset_effector_slot(settings, slot_index: int) -> None:
             default = properties.EFFECTOR_STRENGTH_PERCENT_DEFAULT
         elif key == "type":
             default = effectors.EFFECTOR_TYPE_BASIC
+        elif key == "target_axis":
+            default = "Z"
+        elif key == "target_up_axis":
+            default = "Y"
+        elif key == "target_object":
+            default = None
         else:
             default = properties.GRID_INPUT_DEFAULTS[socket_set[key]]
         setattr(settings, property_name, default)
@@ -412,7 +440,11 @@ def _add_effector(context, operator, effector_type: str):
     slot_properties = EFFECTOR_SLOT_PROPERTIES[slot_index]
     shape = (
         effectors.FIELD_SHAPE_NONE
-        if effector_type == effectors.EFFECTOR_TYPE_RANDOM
+        if effector_type in {
+            effectors.EFFECTOR_TYPE_RANDOM,
+            effectors.EFFECTOR_TYPE_TARGET,
+            effectors.EFFECTOR_TYPE_SHADER,
+        }
         else getattr(settings, slot_properties["shape"])
     )
     radius = properties.GRID_INPUT_DEFAULTS[
@@ -432,7 +464,20 @@ def _add_effector(context, operator, effector_type: str):
             effector.clone_fields_effector.position_z = 0.25
             effector.clone_fields_effector.use_rotation = False
             effector.clone_fields_effector.use_scale = False
+        elif effector_type == effectors.EFFECTOR_TYPE_TARGET:
+            effector.clone_fields_effector.use_position = False
+            effector.clone_fields_effector.use_rotation = True
+            effector.clone_fields_effector.use_scale = False
+            effector.clone_fields_effector.target_axis = "Z"
+            effector.clone_fields_effector.target_up_axis = "Y"
+        elif effector_type == effectors.EFFECTOR_TYPE_SHADER:
+            effector.clone_fields_effector.use_position = True
+            effector.clone_fields_effector.position_z = 1.0
+            effector.clone_fields_effector.use_rotation = False
+            effector.clone_fields_effector.use_scale = False
     effector.location = cloner_object.location
+    if effector_type == effectors.EFFECTOR_TYPE_TARGET:
+        effector.location.z += 3.0
 
     _assign_effector_to_slot(settings, modifier, slot_index, effector, shape, effector_type)
 
