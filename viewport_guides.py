@@ -52,6 +52,7 @@ def _draw_viewport_guides() -> None:
         return
 
     gpu.state.blend_set("ALPHA")
+    _draw_shader_previews(gpu, batch_for_shader)
     gpu.state.line_width_set(2.0)
     for cloner in selected_cloners:
         settings = cloner.clone_fields_cloner
@@ -80,6 +81,85 @@ def _draw_viewport_guides() -> None:
             )
     gpu.state.line_width_set(1.0)
     gpu.state.blend_set("NONE")
+
+
+def _draw_shader_previews(gpu, batch_for_shader) -> None:
+    try:
+        image_shader = gpu.shader.from_builtin("IMAGE_SCENE_LINEAR_TO_REC709_SRGB")
+    except Exception:
+        image_shader = gpu.shader.from_builtin("IMAGE")
+
+    visible = set(bpy.context.visible_objects)
+    drawn = set()
+    for cloner in bpy.data.objects:
+        if cloner not in visible or not modifier_inputs.is_cloner_object(cloner):
+            continue
+        settings = cloner.clone_fields_cloner
+        for slot in effectors.EFFECTOR_SLOT_PROPERTIES:
+            effector = getattr(settings, slot["object"])
+            if effector in drawn or effector not in visible:
+                continue
+            effector_settings = getattr(effector, "clone_fields_effector", None)
+            if (
+                effector_settings is None
+                or effector_settings.type != effectors.EFFECTOR_TYPE_SHADER
+                or effector_settings.shader_image is None
+            ):
+                continue
+            try:
+                texture = gpu.texture.from_image(effector_settings.shader_image)
+            except Exception:
+                continue
+            _draw_tiled_image(
+                gpu,
+                batch_for_shader,
+                image_shader,
+                texture,
+                effector.matrix_world,
+                effector_settings.shader_width,
+                effector_settings.shader_height,
+                effector_settings.shader_tiles_x,
+                effector_settings.shader_tiles_y,
+            )
+            drawn.add(effector)
+
+
+def _draw_tiled_image(
+    gpu,
+    batch_for_shader,
+    shader,
+    texture,
+    matrix,
+    width: float,
+    height: float,
+    tiles_x: int,
+    tiles_y: int,
+) -> None:
+    tiles_x = max(1, tiles_x)
+    tiles_y = max(1, tiles_y)
+    tile_width = width / tiles_x
+    tile_height = height / tiles_y
+    indices = ((0, 1, 2), (2, 3, 0))
+    with gpu.matrix.push_pop():
+        gpu.matrix.multiply_matrix(matrix)
+        shader.bind()
+        shader.uniform_sampler("image", texture)
+        for tile_y in range(tiles_y):
+            y0 = -height * 0.5 + tile_y * tile_height
+            y1 = y0 + tile_height
+            for tile_x in range(tiles_x):
+                x0 = -width * 0.5 + tile_x * tile_width
+                x1 = x0 + tile_width
+                batch = batch_for_shader(
+                    shader,
+                    "TRIS",
+                    {
+                        "pos": ((x0, y0), (x1, y0), (x1, y1), (x0, y1)),
+                        "texCoord": ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+                    },
+                    indices=indices,
+                )
+                batch.draw(shader)
 
 
 def _draw_lines(batch_for_shader, shader, lines, color) -> None:

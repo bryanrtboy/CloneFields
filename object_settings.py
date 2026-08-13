@@ -82,7 +82,12 @@ SPACING_MODE_VALUES = {
     "PER_STEP": 0,
     "ENDPOINT": 1,
 }
+SHADER_FIT_MODE_ITEMS = (
+    ("COVER", "Cover", "Fill the grid and crop image content outside its bounds"),
+    ("CONTAIN", "Contain", "Show the complete image inside the grid bounds"),
+)
 _CONVERTING_SPACING_MODE = False
+_SYNCING_SHADER_ASPECT = False
 
 
 def is_curve_distribution_object(obj: bpy.types.Object | None) -> bool:
@@ -582,9 +587,67 @@ def _sync_effector_settings(self, context) -> None:
 
 def _sync_shader_image(self, context) -> None:
     image = self.shader_image
-    if image is not None and image.size[0] > 0 and image.size[1] > 0:
+    if (
+        self.shader_preserve_aspect
+        and image is not None
+        and image.size[0] > 0
+        and image.size[1] > 0
+    ):
         self.shader_height = self.shader_width * image.size[1] / image.size[0]
     _sync_effector_settings(self, context)
+
+
+def _shader_image_aspect(self) -> float | None:
+    image = self.shader_image
+    if image is None or image.size[0] <= 0 or image.size[1] <= 0:
+        return None
+    return image.size[0] / image.size[1]
+
+
+def _sync_shader_width(self, context) -> None:
+    global _SYNCING_SHADER_ASPECT
+    if not _SYNCING_SHADER_ASPECT and self.shader_preserve_aspect:
+        aspect = _shader_image_aspect(self)
+        if aspect is not None:
+            _SYNCING_SHADER_ASPECT = True
+            try:
+                self.shader_height = self.shader_width / aspect
+            finally:
+                _SYNCING_SHADER_ASPECT = False
+    _sync_effector_settings(self, context)
+
+
+def _sync_shader_height(self, context) -> None:
+    global _SYNCING_SHADER_ASPECT
+    if not _SYNCING_SHADER_ASPECT and self.shader_preserve_aspect:
+        aspect = _shader_image_aspect(self)
+        if aspect is not None:
+            _SYNCING_SHADER_ASPECT = True
+            try:
+                self.shader_width = self.shader_height * aspect
+            finally:
+                _SYNCING_SHADER_ASPECT = False
+    _sync_effector_settings(self, context)
+
+
+def _sync_shader_preserve_aspect(self, context) -> None:
+    if self.shader_preserve_aspect:
+        _sync_shader_width(self, context)
+    else:
+        _sync_effector_settings(self, context)
+
+
+def _sync_shader_fit_mode(self, context) -> None:
+    cloner = getattr(context, "object", None)
+    effector = self.id_data
+    if (
+        modifier_inputs.is_cloner_object(cloner)
+        and any(
+            getattr(cloner.clone_fields_cloner, slot["object"]) == effector
+            for slot in effectors.EFFECTOR_SLOT_PROPERTIES
+        )
+    ):
+        effectors.fit_shader_to_grid(effector, cloner)
 
 
 def _sync_box_dimension(self, context, property_name: str) -> None:
@@ -633,7 +696,8 @@ class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
         update=_sync_effector_settings,
     )
     invert: BoolProperty(
-        name="Inverse",
+        name="Invert",
+        description="Invert image luminance for Shader Effectors or spatial falloff for other Effectors",
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_INVERT],
         update=_sync_effector_settings,
     )
@@ -779,11 +843,17 @@ class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
         type=bpy.types.Image,
         update=_sync_shader_image,
     )
-    shader_projection: EnumProperty(
-        name="Projection",
-        items=effectors.SHADER_PROJECTION_ITEMS,
-        default="PLANAR",
-        update=_sync_effector_settings,
+    shader_preserve_aspect: BoolProperty(
+        name="Preserve Aspect",
+        description="Keep Projection Width and Height matched to the image aspect ratio",
+        default=True,
+        update=_sync_shader_preserve_aspect,
+    )
+    shader_fit_mode: EnumProperty(
+        name="Fit Mode",
+        items=SHADER_FIT_MODE_ITEMS,
+        default="COVER",
+        update=_sync_shader_fit_mode,
     )
     shader_width: FloatProperty(
         name="Width",
@@ -791,7 +861,7 @@ class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
         min=0.001,
         subtype="DISTANCE",
         unit="LENGTH",
-        update=_sync_effector_settings,
+        update=_sync_shader_width,
     )
     shader_height: FloatProperty(
         name="Height",
@@ -799,6 +869,20 @@ class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
         min=0.001,
         subtype="DISTANCE",
         unit="LENGTH",
+        update=_sync_shader_height,
+    )
+    shader_tiles_x: IntProperty(
+        name="Tiles X",
+        description="Number of horizontal image repeats inside the projection",
+        default=1,
+        min=1,
+        update=_sync_effector_settings,
+    )
+    shader_tiles_y: IntProperty(
+        name="Tiles Y",
+        description="Number of vertical image repeats inside the projection",
+        default=1,
+        min=1,
         update=_sync_effector_settings,
     )
     use_scale: BoolProperty(

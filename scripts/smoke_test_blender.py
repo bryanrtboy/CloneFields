@@ -1147,11 +1147,10 @@ def main() -> None:
         shader_settings.shader_image = shader_image
         assert abs(shader_settings.shader_height - 3.0) < 0.001
         assert shader_effector.data == shader_image
-        assert shader_effector.empty_display_type == "IMAGE"
+        assert shader_effector.empty_display_type == "PLAIN_AXES"
         shader_settings.position_x = 0.0
         shader_settings.position_y = 0.0
         shader_settings.position_z = 2.0
-        shader_settings.shader_projection = "PLANAR"
         shader_cloner.update_tag()
         bpy.context.view_layer.update()
         shader_modifier = shader_cloner.modifiers["Cloner"]
@@ -1169,11 +1168,47 @@ def main() -> None:
         shader_bounds = _evaluated_bounds_size(shader_cloner)
         assert shader_bounds[2] > 2.5, shader_bounds
 
-        shader_settings.shader_projection = "CUBIC"
+        shader_settings.invert = True
         shader_cloner.update_tag()
         bpy.context.view_layer.update()
-        cubic_shader_vertices = _evaluated_vertices(shader_cloner)
-        assert cubic_shader_vertices
+        inverted_shader_vertices = _evaluated_vertices(shader_cloner)
+        inverted_left_z = [z for x, _y, z in inverted_shader_vertices if x < -1.0]
+        inverted_right_z = [z for x, _y, z in inverted_shader_vertices if x > 1.0]
+        assert inverted_left_z and inverted_right_z
+        assert max(inverted_left_z) - max(inverted_right_z) > 1.0, (
+            inverted_left_z,
+            inverted_right_z,
+        )
+        shader_settings.invert = False
+
+        shader_settings.shader_preserve_aspect = True
+        shader_settings.shader_height = 4.0
+        assert abs(shader_settings.shader_width - 8.0) < 0.001
+        shader_settings.shader_fit_mode = "COVER"
+        fit_result = bpy.ops.clone_fields.fit_shader_to_grid("EXEC_DEFAULT")
+        assert fit_result == {"FINISHED"}, fit_result
+        assert abs(shader_settings.shader_width - 6.0) < 0.001
+        assert abs(shader_settings.shader_height - 3.0) < 0.001
+
+        shader_settings.shader_fit_mode = "CONTAIN"
+        assert abs(shader_settings.shader_width - 4.0) < 0.001
+        assert abs(shader_settings.shader_height - 2.0) < 0.001
+
+        shader_settings.shader_preserve_aspect = False
+        shader_settings.shader_height = 3.0
+        assert tuple(shader_effector.scale) == (1.0, 1.0, 1.0)
+        fit_result = bpy.ops.clone_fields.fit_shader_to_grid("EXEC_DEFAULT")
+        assert fit_result == {"FINISHED"}, fit_result
+        assert abs(shader_settings.shader_width - 6.0) < 0.001
+        assert abs(shader_settings.shader_height - 2.0) < 0.001
+        assert tuple(shader_effector.scale) == (1.0, 1.0, 1.0)
+
+        shader_settings.shader_tiles_x = 2
+        shader_settings.shader_tiles_y = 1
+        shader_cloner.update_tag()
+        bpy.context.view_layer.update()
+        tiled_shader_vertices = _evaluated_vertices(shader_cloner)
+        assert tiled_shader_vertices
 
         shader_settings.type = eff.EFFECTOR_TYPE_BASIC
         shader_settings.shape = eff.FIELD_SHAPE_CUBE

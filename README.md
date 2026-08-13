@@ -99,12 +99,19 @@ Effector properties are stored on the Effector object, so shared Radius, Height,
 Length, Falloff, Strength, Field, and transform values update every linked
 Cloner. Each stack entry has an independent `Cloner Influence`. Global Strength,
 Cloner Influence, and Falloff use 0-100% controls.
+The selected entry separates Effector behavior from its optional Field shape,
+dimensions, falloff, and spatial inversion.
 
 Random Effectors add Seed and Position, Rotation, and Scale Variation ranges.
-Shader Effectors use image luminance to control transform strength. Planar
-projection follows the visible image controller and initializes its height from
-the image aspect ratio; Cubic projection applies the image across local box
-faces. Shader Effectors affect transforms only, not clone color or materials.
+Shader Effectors use image luminance to control transform strength. `Invert`
+swaps black and white influence. Planar projection follows the visible image
+controller, and Tiles X/Y repeats the image inside that projection. Preserve
+Aspect keeps the projection matched to the image, while Fit to Grid centers and
+sizes it to the evaluated Grid Cloner bounds using Cover or Contain. Switching
+Cover or Contain refits immediately after the first fit. The viewport draws an
+exact tiled preview while the Effector Empty remains the selectable controller.
+Shader Effectors affect
+transforms only, not clone color or materials.
 Box Fields provide independent X, Y, and Z dimensions with an optional Uniform
 size control.
 Target Effectors orient clones toward their visible controller by default. Set

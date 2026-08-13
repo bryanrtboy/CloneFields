@@ -155,16 +155,26 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     _new_socket(interface, properties.SOCKET_EFFECTOR_SHADER_IMAGE, "INPUT", "NodeSocketImage")
     socket = _new_socket(
         interface,
-        properties.SOCKET_EFFECTOR_SHADER_PROJECTION,
+        properties.SOCKET_EFFECTOR_SHADER_TILES_X,
         "INPUT",
         "NodeSocketInt",
         parent=effector_panel,
     )
     socket.default_value = properties.GRID_INPUT_DEFAULTS[
-        properties.SOCKET_EFFECTOR_SHADER_PROJECTION
+        properties.SOCKET_EFFECTOR_SHADER_TILES_X
     ]
-    socket.min_value = 0
-    socket.max_value = 1
+    socket.min_value = 1
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_EFFECTOR_SHADER_TILES_Y,
+        "INPUT",
+        "NodeSocketInt",
+        parent=effector_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_SHADER_TILES_Y
+    ]
+    socket.min_value = 1
     for name in (
         properties.SOCKET_EFFECTOR_SHADER_WIDTH,
         properties.SOCKET_EFFECTOR_SHADER_HEIGHT,
@@ -1137,10 +1147,10 @@ def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> 
         socket.min_value = 0.0
         socket.subtype = "DISTANCE"
     _new_socket(interface, socket_set["shader_image"], "INPUT", "NodeSocketImage")
-    socket = _new_socket(interface, socket_set["shader_projection"], "INPUT", "NodeSocketInt", parent=panel)
-    socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["shader_projection"]]
-    socket.min_value = 0
-    socket.max_value = 1
+    for name in (socket_set["shader_tiles_x"], socket_set["shader_tiles_y"]):
+        socket = _new_socket(interface, name, "INPUT", "NodeSocketInt", parent=panel)
+        socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
+        socket.min_value = 1
     for name in (socket_set["shader_width"], socket_set["shader_height"]):
         socket = _new_socket(interface, name, "INPUT", "NodeSocketFloat", parent=panel)
         socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
@@ -2066,6 +2076,8 @@ def _build_plain_effector_points(
     safe_falloff = _new_math_node(nodes, (x + 740, y - 80), "MAXIMUM")
     falloff_weight = _new_math_node(nodes, (x + 980, y - 80), "DIVIDE")
     inverted_weight = _new_math_node(nodes, (x + 1220, y - 80), "SUBTRACT")
+    not_shader = _new_boolean_math_node(nodes, (x + 1220, y - 180), "NOT")
+    invert_spatial_field = _new_boolean_math_node(nodes, (x + 1460, y - 180), "AND")
     inverse_switch = _new_float_switch_node(nodes, (x + 1460, y - 80))
     none_weight = _new_float_switch_node(nodes, (x + 1580, y + 40))
     strength = _new_math_node(nodes, (x + 1700, y - 80), "MULTIPLY")
@@ -2082,24 +2094,24 @@ def _build_plain_effector_points(
     shader_size = _new_combine_xyz_node(nodes, (x + 740, y + 1040))
     shader_uv = _new_vector_math_node(nodes, (x + 1220, y + 1180), "DIVIDE")
     shader_center = _new_vector_math_node(nodes, (x + 1460, y + 1180), "ADD")
-    shader_abs = _new_vector_math_node(nodes, (x + 1460, y + 1320), "ABSOLUTE")
-    shader_separate = _new_node(nodes, "ShaderNodeSeparateXYZ", (x + 1700, y + 1320))
-    shader_abs_separate = _new_node(nodes, "ShaderNodeSeparateXYZ", (x + 1700, y + 1680))
-    shader_xy = _new_combine_xyz_node(nodes, (x + 1940, y + 1320))
-    shader_yz = _new_combine_xyz_node(nodes, (x + 1940, y + 1440))
-    shader_xz = _new_combine_xyz_node(nodes, (x + 1940, y + 1560))
-    shader_yz_max = _new_math_node(nodes, (x + 1940, y + 1800), "MAXIMUM")
-    shader_xz_max = _new_math_node(nodes, (x + 2180, y + 1800), "MAXIMUM")
-    x_dominant = _new_math_node(nodes, (x + 1940, y + 1680), "GREATER_THAN")
-    y_dominant = _new_math_node(nodes, (x + 2180, y + 1680), "GREATER_THAN")
-    yz_or_xy = _new_vector_switch_node(nodes, (x + 2180, y + 1440))
-    cubic_uv = _new_vector_switch_node(nodes, (x + 2420, y + 1440))
-    cubic_center = _new_vector_math_node(nodes, (x + 2660, y + 1440), "ADD")
-    projection_uv = _new_vector_switch_node(nodes, (x + 2660, y + 1320))
+    shader_center_separate = _new_node(nodes, "ShaderNodeSeparateXYZ", (x + 1700, y + 1320))
+    shader_tiles = _new_combine_xyz_node(nodes, (x + 1700, y + 1460))
+    tiled_uv = _new_vector_math_node(nodes, (x + 1940, y + 1320), "MULTIPLY")
+    repeated_uv = _new_vector_math_node(nodes, (x + 2180, y + 1320), "FRACTION")
+    inside_x_min = _new_math_node(nodes, (x + 1940, y + 1560), "GREATER_THAN")
+    inside_x_max = _new_math_node(nodes, (x + 1940, y + 1680), "LESS_THAN")
+    inside_y_min = _new_math_node(nodes, (x + 2180, y + 1560), "GREATER_THAN")
+    inside_y_max = _new_math_node(nodes, (x + 2180, y + 1680), "LESS_THAN")
+    inside_x = _new_math_node(nodes, (x + 2420, y + 1560), "MULTIPLY")
+    inside_y = _new_math_node(nodes, (x + 2420, y + 1680), "MULTIPLY")
+    inside_projection = _new_math_node(nodes, (x + 2660, y + 1620), "MULTIPLY")
     shader_channels = _new_node(nodes, "FunctionNodeSeparateColor", (x + 1700, y + 1040))
     shader_rg = _new_math_node(nodes, (x + 1940, y + 920), "ADD")
     shader_rgb = _new_math_node(nodes, (x + 2180, y + 920), "ADD")
     shader_luminance = _new_math_node(nodes, (x + 2420, y + 920), "MULTIPLY")
+    clipped_shader_luminance = _new_math_node(nodes, (x + 2660, y + 800), "MULTIPLY")
+    inverted_shader_luminance = _new_math_node(nodes, (x + 2660, y + 920), "SUBTRACT")
+    shader_invert_switch = _new_float_switch_node(nodes, (x + 2900, y + 1040))
     shader_weight = _new_float_switch_node(nodes, (x + 1940, y + 1040))
     weighted_strength = _new_math_node(nodes, (x + 2180, y + 1040), "MULTIPLY")
     index = _new_node(nodes, "GeometryNodeInputIndex", (x + 980, y + 980))
@@ -2173,10 +2185,15 @@ def _build_plain_effector_points(
     box_half_size.inputs["Scale"].default_value = 0.5
     safe_box_half_size.inputs[1].default_value = (0.000001, 0.000001, 0.000001)
     shader_center.inputs[1].default_value = (0.5, 0.5, 0.5)
-    cubic_center.inputs[1].default_value = (0.5, 0.5, 0.5)
+    shader_tiles.inputs["Z"].default_value = 1.0
+    inside_x_min.inputs[1].default_value = -0.000001
+    inside_x_max.inputs[1].default_value = 1.000001
+    inside_y_min.inputs[1].default_value = -0.000001
+    inside_y_max.inputs[1].default_value = 1.000001
     shader_luminance.inputs[1].default_value = 1.0 / 3.0
     cubic_field_size.inputs["True"].default_value = 1.0
     inverted_weight.inputs[0].default_value = 1.0
+    inverted_shader_luminance.inputs[0].default_value = 1.0
     falloff_range_factor.inputs[0].default_value = 1.0
     one_scale.inputs["X"].default_value = 1.0
     one_scale.inputs["Y"].default_value = 1.0
@@ -2271,7 +2288,10 @@ def _build_plain_effector_points(
     _link(links, radius_minus_distance, "Value", falloff_weight, "Value")
     links.new(safe_falloff.outputs["Value"], falloff_weight.inputs[1])
     links.new(falloff_weight.outputs["Value"], inverted_weight.inputs[1])
-    _link(links, group_input, socket_set["invert"], inverse_switch, "Switch")
+    _link(links, is_shader, "Value", not_shader, "Boolean")
+    _link(links, group_input, socket_set["invert"], invert_spatial_field, "Boolean")
+    _link(links, not_shader, "Boolean", invert_spatial_field, "Boolean_001")
+    _link(links, invert_spatial_field, "Boolean", inverse_switch, "Switch")
     _link(links, falloff_weight, "Value", inverse_switch, "False")
     _link(links, inverted_weight, "Value", inverse_switch, "True")
     _link(links, is_none, "Value", none_weight, "Switch")
@@ -2289,43 +2309,38 @@ def _build_plain_effector_points(
     _link(links, local_position, "Vector", shader_uv, "Vector")
     links.new(shader_size.outputs["Vector"], shader_uv.inputs[1])
     _link(links, shader_uv, "Vector", shader_center, "Vector")
-    _link(links, shader_uv, "Vector", shader_abs, "Vector")
-    _link(links, shader_uv, "Vector", shader_separate, "Vector")
-    _link(links, shader_abs, "Vector", shader_abs_separate, "Vector")
-    links.new(shader_separate.outputs["X"], shader_xy.inputs["X"])
-    links.new(shader_separate.outputs["Y"], shader_xy.inputs["Y"])
-    links.new(shader_separate.outputs["Y"], shader_yz.inputs["X"])
-    links.new(shader_separate.outputs["Z"], shader_yz.inputs["Y"])
-    links.new(shader_separate.outputs["X"], shader_xz.inputs["X"])
-    links.new(shader_separate.outputs["Z"], shader_xz.inputs["Y"])
-    links.new(shader_abs_separate.outputs["Y"], shader_yz_max.inputs["Value"])
-    links.new(shader_abs_separate.outputs["Z"], shader_yz_max.inputs[1])
-    links.new(shader_abs_separate.outputs["X"], shader_xz_max.inputs["Value"])
-    links.new(shader_abs_separate.outputs["Z"], shader_xz_max.inputs[1])
-    links.new(shader_abs_separate.outputs["X"], x_dominant.inputs["Value"])
-    _link(links, shader_yz_max, "Value", x_dominant, "Value_001")
-    links.new(shader_abs_separate.outputs["Y"], y_dominant.inputs["Value"])
-    _link(links, shader_xz_max, "Value", y_dominant, "Value_001")
-    _link(links, y_dominant, "Value", yz_or_xy, "Switch")
-    _link(links, shader_xy, "Vector", yz_or_xy, "False")
-    _link(links, shader_xz, "Vector", yz_or_xy, "True")
-    _link(links, x_dominant, "Value", cubic_uv, "Switch")
-    _link(links, yz_or_xy, "Output", cubic_uv, "False")
-    _link(links, shader_yz, "Vector", cubic_uv, "True")
-    _link(links, cubic_uv, "Output", cubic_center, "Vector")
-    _link(links, group_input, socket_set["shader_projection"], projection_uv, "Switch")
-    _link(links, shader_center, "Vector", projection_uv, "False")
-    _link(links, cubic_center, "Vector", projection_uv, "True")
-    _link(links, projection_uv, "Output", image_texture, "Vector")
+    _link(links, shader_center, "Vector", shader_center_separate, "Vector")
+    _link(links, group_input, socket_set["shader_tiles_x"], shader_tiles, "X")
+    _link(links, group_input, socket_set["shader_tiles_y"], shader_tiles, "Y")
+    _link(links, shader_center, "Vector", tiled_uv, "Vector")
+    links.new(shader_tiles.outputs["Vector"], tiled_uv.inputs[1])
+    _link(links, tiled_uv, "Vector", repeated_uv, "Vector")
+    _link(links, repeated_uv, "Vector", image_texture, "Vector")
+    links.new(shader_center_separate.outputs["X"], inside_x_min.inputs["Value"])
+    links.new(shader_center_separate.outputs["X"], inside_x_max.inputs["Value"])
+    links.new(shader_center_separate.outputs["Y"], inside_y_min.inputs["Value"])
+    links.new(shader_center_separate.outputs["Y"], inside_y_max.inputs["Value"])
+    _link(links, inside_x_min, "Value", inside_x, "Value")
+    _link(links, inside_x_max, "Value", inside_x, "Value_001")
+    _link(links, inside_y_min, "Value", inside_y, "Value")
+    _link(links, inside_y_max, "Value", inside_y, "Value_001")
+    _link(links, inside_x, "Value", inside_projection, "Value")
+    _link(links, inside_y, "Value", inside_projection, "Value_001")
     links.new(image_texture.outputs["Color"], shader_channels.inputs["Color"])
     links.new(shader_channels.outputs["Red"], shader_rg.inputs["Value"])
     links.new(shader_channels.outputs["Green"], shader_rg.inputs[1])
     _link(links, shader_rg, "Value", shader_rgb, "Value")
     links.new(shader_channels.outputs["Blue"], shader_rgb.inputs[1])
     _link(links, shader_rgb, "Value", shader_luminance, "Value")
+    _link(links, shader_luminance, "Value", inverted_shader_luminance, "Value_001")
+    _link(links, group_input, socket_set["invert"], shader_invert_switch, "Switch")
+    _link(links, shader_luminance, "Value", shader_invert_switch, "False")
+    _link(links, inverted_shader_luminance, "Value", shader_invert_switch, "True")
+    _link(links, shader_invert_switch, "Output", clipped_shader_luminance, "Value")
+    _link(links, inside_projection, "Value", clipped_shader_luminance, "Value_001")
     _link(links, is_shader, "Value", shader_weight, "Switch")
     shader_weight.inputs["False"].default_value = 1.0
-    _link(links, shader_luminance, "Value", shader_weight, "True")
+    _link(links, clipped_shader_luminance, "Value", shader_weight, "True")
     _link(links, strength, "Value", weighted_strength, "Value")
     _link(links, shader_weight, "Output", weighted_strength, "Value_001")
     _link(links, group_input, socket_set["enabled"], enabled_weight, "Switch")

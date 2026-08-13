@@ -195,42 +195,49 @@ def _draw_effector_slot(layout, settings, slot: dict) -> None:
     if effector_settings is None:
         return
 
-    box.prop(effector_settings, "shape", text="Field")
+    box.separator()
+    box.label(text="Effector")
+    _draw_effector_settings(box, settings, slot, effector_settings)
+
+    box.separator()
+    box.label(text="Field")
+    _draw_field_settings(box, effector_settings)
+
+
+def _draw_effector_settings(box, settings, slot, effector_settings) -> None:
     if effector_settings.type == effectors.EFFECTOR_TYPE_RANDOM:
         box.prop(effector_settings, "seed")
     elif effector_settings.type == effectors.EFFECTOR_TYPE_SHADER:
-        box.template_ID_preview(
+        image_row = box.row(align=True)
+        image_row.prop_search(
             effector_settings,
             "shader_image",
-            open="image.open",
-            rows=3,
-            cols=6,
+            bpy.data,
+            "images",
+            text="Image",
         )
-        box.prop(effector_settings, "shader_projection", expand=True)
+        image_row.operator("clone_fields.load_shader_image", text="", icon="FILE_FOLDER")
+        clear = image_row.row(align=True)
+        clear.enabled = effector_settings.shader_image is not None
+        clear.operator("clone_fields.clear_shader_image", text="", icon="X")
+        if effector_settings.shader_image is not None:
+            box.template_preview(effector_settings.shader_image, show_buttons=False)
+        box.prop(effector_settings, "shader_preserve_aspect")
         size_row = box.row(align=True)
         size_row.label(text="Projection Size")
         size_row.prop(effector_settings, "shader_width", text="")
         size_row.prop(effector_settings, "shader_height", text="")
-    box.prop(effector_settings, "invert")
+        tiles_row = box.row(align=True)
+        tiles_row.label(text="Tiles")
+        tiles_row.prop(effector_settings, "shader_tiles_x", text="")
+        tiles_row.prop(effector_settings, "shader_tiles_y", text="")
+        if settings.distribution_mode == "GRID":
+            fit_row = box.row(align=True)
+            if effector_settings.shader_preserve_aspect:
+                fit_row.prop(effector_settings, "shader_fit_mode", text="")
+            fit_row.operator("clone_fields.fit_shader_to_grid", icon="FULLSCREEN_ENTER")
+        box.prop(effector_settings, "invert", text="Invert Image")
     box.prop(effector_settings, "strength")
-    if effector_settings.shape != effectors.FIELD_SHAPE_NONE:
-        if effector_settings.shape == effectors.FIELD_SHAPE_LINEAR:
-            box.prop(effector_settings, "length")
-        elif effector_settings.shape == effectors.FIELD_SHAPE_CUBE:
-            box.prop(effector_settings, "box_uniform")
-            _draw_xyz_row(
-                box,
-                effector_settings,
-                "Size",
-                "box_x",
-                "box_y",
-                "box_z",
-            )
-        else:
-            box.prop(effector_settings, "radius")
-        if effector_settings.shape == effectors.FIELD_SHAPE_CYLINDER:
-            box.prop(effector_settings, "height")
-        box.prop(effector_settings, "falloff")
 
     if effector_settings.type == effectors.EFFECTOR_TYPE_TARGET:
         box.prop(effector_settings, "target_object", text="Target")
@@ -257,6 +264,32 @@ def _draw_effector_slot(layout, settings, slot: dict) -> None:
 
     box.separator()
     box.prop(settings, slot["strength"], text="Cloner Influence")
+
+
+def _draw_field_settings(box, effector_settings) -> None:
+    box.prop(effector_settings, "shape", text="Shape")
+    if effector_settings.shape == effectors.FIELD_SHAPE_NONE:
+        return
+
+    if effector_settings.shape == effectors.FIELD_SHAPE_LINEAR:
+        box.prop(effector_settings, "length")
+    elif effector_settings.shape == effectors.FIELD_SHAPE_CUBE:
+        box.prop(effector_settings, "box_uniform")
+        _draw_xyz_row(
+            box,
+            effector_settings,
+            "Size",
+            "box_x",
+            "box_y",
+            "box_z",
+        )
+    else:
+        box.prop(effector_settings, "radius")
+    if effector_settings.shape == effectors.FIELD_SHAPE_CYLINDER:
+        box.prop(effector_settings, "height")
+    box.prop(effector_settings, "falloff")
+    if effector_settings.type != effectors.EFFECTOR_TYPE_SHADER:
+        box.prop(effector_settings, "invert", text="Invert Field")
 
 
 def _selected_effector_slot(settings):

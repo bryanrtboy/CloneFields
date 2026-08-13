@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import bpy
 from bpy.app.handlers import persistent
+from mathutils import Vector
 
 from . import properties
 
@@ -39,11 +40,6 @@ TARGET_AXIS_ITEMS = (
     ("Z", "Z", "Aim the source object's local Z axis at the target"),
 )
 TARGET_AXIS_VALUES = {"X": 0, "Y": 1, "Z": 2}
-SHADER_PROJECTION_ITEMS = (
-    ("PLANAR", "Planar", "Project the image through the Effector's local XY plane"),
-    ("CUBIC", "Cubic", "Project the image across the dominant local box face"),
-)
-SHADER_PROJECTION_VALUES = {"PLANAR": 0, "CUBIC": 1}
 FIELD_SHAPE_SPHERE = "SPHERE"
 FIELD_SHAPE_CUBE = "CUBE"
 FIELD_SHAPE_CYLINDER = "CYLINDER"
@@ -178,9 +174,10 @@ EFFECTOR_GLOBAL_KEYS = (
     "target_up_axis",
     "target_object",
     "shader_image",
-    "shader_projection",
     "shader_width",
     "shader_height",
+    "shader_tiles_x",
+    "shader_tiles_y",
     "use_scale",
     "scale_x",
     "scale_y",
@@ -204,10 +201,6 @@ def effector_type_value(effector_type: str) -> int:
 
 def target_axis_value(axis: str) -> int:
     return TARGET_AXIS_VALUES.get(axis, TARGET_AXIS_VALUES["Z"])
-
-
-def shader_projection_value(projection: str) -> int:
-    return SHADER_PROJECTION_VALUES.get(projection, 0)
 
 
 def effector_name(effector_type: str, shape: str) -> str:
@@ -241,7 +234,7 @@ def configure_effector_object(
     effector_type: str | None = None,
 ) -> None:
     if effector_type == EFFECTOR_TYPE_SHADER:
-        obj.empty_display_type = "IMAGE" if obj.data is not None else "PLAIN_AXES"
+        obj.empty_display_type = "PLAIN_AXES"
     elif shape == FIELD_SHAPE_NONE:
         obj.empty_display_type = "PLAIN_AXES"
     elif shape == FIELD_SHAPE_CUBE:
@@ -264,13 +257,109 @@ def configure_effector_object(
     obj[properties.PROP_EFFECTOR_SHAPE] = shape
 
 
+def configure_shader_display(obj: bpy.types.Object, settings) -> None:
+    """Keep the selectable controller separate from the custom image preview."""
+    obj.empty_display_type = "PLAIN_AXES"
+    obj.empty_display_size = max(settings.shader_width, settings.shader_height) * 0.025
+    obj.scale = (1.0, 1.0, 1.0)
+
+
+def fit_shader_to_grid(effector: bpy.types.Object, cloner: bpy.types.Object) -> bool:
+    if (
+        not is_effector_object(effector)
+        or not hasattr(effector, "clone_fields_effector")
+        or not hasattr(cloner, "clone_fields_cloner")
+    ):
+        return False
+    effector_settings = effector.clone_fields_effector
+    cloner_settings = cloner.clone_fields_cloner
+    if (
+        effector_settings.type != EFFECTOR_TYPE_SHADER
+        or cloner_settings.distribution_mode != "GRID"
+    ):
+        return False
+
+    width = _grid_cell_footprint(
+        cloner_settings.spacing_x,
+        cloner_settings.count_x,
+        cloner_settings.spacing_mode,
+    )
+    height = _grid_cell_footprint(
+        cloner_settings.spacing_y,
+        cloner_settings.count_y,
+        cloner_settings.spacing_mode,
+    )
+    bounds = _evaluated_local_bounds(cloner)
+    if bounds is not None:
+        bounds_center, bounds_size = bounds
+        width = max(0.001, bounds_size.x)
+        height = max(0.001, bounds_size.y)
+    else:
+        bounds_center = Vector((0.0, 0.0, 0.0))
+
+    image = effector_settings.shader_image
+    if (
+        effector_settings.shader_preserve_aspect
+        and image is not None
+        and image.size[0] > 0
+        and image.size[1] > 0
+    ):
+        aspect = image.size[0] / image.size[1]
+        if effector_settings.shader_fit_mode == "CONTAIN":
+            width = min(width, height * aspect)
+        else:
+            width = max(width, height * aspect)
+        height = width / aspect
+
+    effector.location = cloner.matrix_world @ bounds_center
+    rotation_order = (
+        effector.rotation_mode
+        if effector.rotation_mode in {"XYZ", "XZY", "YXZ", "YZX", "ZXY", "ZYX"}
+        else "XYZ"
+    )
+    effector.rotation_euler = cloner.matrix_world.to_quaternion().to_euler(rotation_order)
+    effector_settings.shader_width = max(0.001, width)
+    if not effector_settings.shader_preserve_aspect:
+        effector_settings.shader_height = max(0.001, height)
+    configure_shader_display(effector, effector_settings)
+    return True
+
+
+def _grid_cell_footprint(spacing: float, count: int, spacing_mode: str) -> float:
+    if spacing_mode == "PER_STEP":
+        return max(0.001, spacing * max(1, count))
+    if count <= 1:
+        return max(0.001, spacing)
+    return max(0.001, spacing * count / (count - 1))
+
+
+def _evaluated_local_bounds(
+    obj: bpy.types.Object,
+) -> tuple[Vector, Vector] | None:
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    evaluated = obj.evaluated_get(depsgraph)
+    mesh = evaluated.to_mesh()
+    try:
+        if not mesh.vertices:
+            return None
+        xs = [vertex.co.x for vertex in mesh.vertices]
+        ys = [vertex.co.y for vertex in mesh.vertices]
+        zs = [vertex.co.z for vertex in mesh.vertices]
+        minimum = Vector((min(xs), min(ys), min(zs)))
+        maximum = Vector((max(xs), max(ys), max(zs)))
+        return (minimum + maximum) * 0.5, maximum - minimum
+    finally:
+        evaluated.to_mesh_clear()
+
+
 def enforce_effector_transform_constraints(obj: bpy.types.Object) -> bool:
     changed = False
     if obj.lock_scale[:] != (True, True, True):
         obj.lock_scale = (True, True, True)
         changed = True
-    if any(abs(value - 1.0) > 0.0001 for value in obj.scale):
-        obj.scale = (1.0, 1.0, 1.0)
+    expected_scale = (1.0, 1.0, 1.0)
+    if any(abs(value - expected) > 0.0001 for value, expected in zip(obj.scale, expected_scale)):
+        obj.scale = expected_scale
         changed = True
     return changed
 
@@ -333,8 +422,7 @@ def sync_effector_slot(settings, modifier, slot_index: int) -> None:
     )
     rename_effector_object(effector, effector_settings.shape, effector_settings.type)
     if effector_settings.type == EFFECTOR_TYPE_SHADER:
-        effector.empty_display_size = effector_settings.shader_width
-        effector.empty_image_offset = (-0.5, -0.5)
+        configure_shader_display(effector, effector_settings)
 
     modifier_inputs.set_modifier_input(modifier, sockets["object"], effector)
     modifier_inputs.set_modifier_input(
@@ -349,8 +437,6 @@ def sync_effector_slot(settings, modifier, slot_index: int) -> None:
             value = effector_type_value(effector_settings.type)
         elif key in {"target_axis", "target_up_axis"}:
             value = target_axis_value(getattr(effector_settings, key))
-        elif key == "shader_projection":
-            value = shader_projection_value(effector_settings.shader_projection)
         else:
             value = getattr(effector_settings, key)
         modifier_inputs.set_modifier_input(modifier, sockets[key], value)

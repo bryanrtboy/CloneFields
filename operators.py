@@ -1,5 +1,7 @@
 """Operators for Clone Fields."""
 
+from pathlib import Path
+
 import bpy
 from bpy.props import FloatProperty, IntProperty, StringProperty
 
@@ -125,6 +127,76 @@ class CLONE_FIELDS_OT_add_shader_effector(bpy.types.Operator):
 
     def execute(self, context):
         return _add_effector(context, self, effectors.EFFECTOR_TYPE_SHADER)
+
+
+class CLONE_FIELDS_OT_load_shader_image(bpy.types.Operator):
+    bl_idname = "clone_fields.load_shader_image"
+    bl_label = "Open Shader Image"
+    bl_description = "Open an image and assign it to the selected Shader Effector"
+    bl_options = {"REGISTER", "UNDO"}
+
+    filepath: StringProperty(subtype="FILE_PATH")
+    filter_glob: StringProperty(
+        default="*.bmp;*.cin;*.dpx;*.exr;*.hdr;*.jpeg;*.jpg;*.png;*.sgi;*.tga;*.tif;*.tiff;*.webp",
+        options={"HIDDEN"},
+    )
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
+
+    def execute(self, context):
+        effector_settings = _selected_shader_effector_settings(context)
+        if effector_settings is None:
+            self.report({"ERROR"}, "Select a Shader Effector first")
+            return {"CANCELLED"}
+        path = Path(self.filepath)
+        if not path.is_file():
+            self.report({"ERROR"}, "Choose an image file")
+            return {"CANCELLED"}
+        try:
+            effector_settings.shader_image = bpy.data.images.load(
+                str(path),
+                check_existing=True,
+            )
+        except RuntimeError as error:
+            self.report({"ERROR"}, str(error))
+            return {"CANCELLED"}
+        return {"FINISHED"}
+
+
+class CLONE_FIELDS_OT_clear_shader_image(bpy.types.Operator):
+    bl_idname = "clone_fields.clear_shader_image"
+    bl_label = "Clear Shader Image"
+    bl_description = "Unlink the image from the selected Shader Effector"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        effector_settings = _selected_shader_effector_settings(context)
+        if effector_settings is None:
+            return {"CANCELLED"}
+        effector_settings.shader_image = None
+        return {"FINISHED"}
+
+
+class CLONE_FIELDS_OT_fit_shader_to_grid(bpy.types.Operator):
+    bl_idname = "clone_fields.fit_shader_to_grid"
+    bl_label = "Fit to Grid"
+    bl_description = "Center and size the selected Shader Effector to this Grid Cloner"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        cloner_object = context.object
+        modifier = modifier_inputs.get_cloner_modifier(cloner_object)
+        effector_settings = _selected_shader_effector_settings(context)
+        if modifier is None or effector_settings is None:
+            self.report({"ERROR"}, "Select a Shader Effector on a Grid Cloner")
+            return {"CANCELLED"}
+        if cloner_object.clone_fields_cloner.distribution_mode != "GRID":
+            self.report({"ERROR"}, "Fit to Grid is available in Grid mode")
+            return {"CANCELLED"}
+        effector = effector_settings.id_data
+        return {"FINISHED"} if effectors.fit_shader_to_grid(effector, cloner_object) else {"CANCELLED"}
 
 
 class CLONE_FIELDS_OT_link_existing_effector(bpy.types.Operator):
@@ -308,12 +380,35 @@ classes = (
     CLONE_FIELDS_OT_add_random_effector,
     CLONE_FIELDS_OT_add_target_effector,
     CLONE_FIELDS_OT_add_shader_effector,
+    CLONE_FIELDS_OT_load_shader_image,
+    CLONE_FIELDS_OT_clear_shader_image,
+    CLONE_FIELDS_OT_fit_shader_to_grid,
     CLONE_FIELDS_OT_link_existing_effector,
     CLONE_FIELDS_OT_move_plain_effector,
     CLONE_FIELDS_OT_select_plain_effector,
     CLONE_FIELDS_OT_select_effector_object,
     CLONE_FIELDS_OT_delete_effector,
 )
+
+
+def _selected_shader_effector_settings(context):
+    cloner_object = context.object
+    if modifier_inputs.get_cloner_modifier(cloner_object) is None:
+        return None
+    settings = cloner_object.clone_fields_cloner
+    index = settings.selected_effector_slot
+    if index < 0 or index >= len(EFFECTOR_SLOT_PROPERTIES):
+        return None
+    effector = getattr(settings, EFFECTOR_SLOT_PROPERTIES[index]["object"])
+    if not effectors.is_effector_object(effector):
+        return None
+    effector_settings = getattr(effector, "clone_fields_effector", None)
+    if (
+        effector_settings is None
+        or effector_settings.type != effectors.EFFECTOR_TYPE_SHADER
+    ):
+        return None
+    return effector_settings
 
 
 def _first_empty_effector_slot(settings) -> int | None:
