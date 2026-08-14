@@ -25,10 +25,11 @@ PROP_EFFECTOR_SHAPE = "clone_fields_effector_shape"
 PROP_SPACING_MODE_PREVIOUS = "clone_fields_spacing_mode_previous"
 PROP_NODE_GROUP_BUILD_VERSION = "clone_fields_node_group_build_version"
 PROP_INITIALIZING_CLONER = "clone_fields_initializing"
-GRID_NODE_GROUP_BUILD_VERSION = 24
+GRID_NODE_GROUP_BUILD_VERSION = 26
 EFFECTOR_STRENGTH_PERCENT_DEFAULT = 100
 
 SOCKET_GEOMETRY = "Geometry"
+SOCKET_STEP_INDEX = "Step Index"
 SOCKET_SOURCE_OBJECT = "Source Object"
 SOCKET_SOURCE_COLLECTION = "Source Collection"
 SOCKET_SOURCE_COUNT = "Source Count"

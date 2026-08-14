@@ -80,8 +80,8 @@ sources.
 
 ### Effectors
 
-Select a Cloner and use `New Basic`, `New Random`, `New Target`, or `New Shader`
-in its Clone Fields panel.
+Select a Cloner and use `New Basic`, `New Random`, `New Target`, `New Shader`,
+or `New Step` in its Clone Fields panel.
 Effectors are visible controller objects that can be moved or keyframed.
 
 Field shapes include None, Spherical, Cubic, Cylindrical, and Linear. `None`
@@ -103,6 +103,8 @@ The selected entry separates Effector behavior from its optional Field shape,
 dimensions, falloff, and spatial inversion.
 
 Random Effectors add Seed and Position, Rotation, and Scale Variation ranges.
+Step Effectors apply Position, Rotation, and Scale progressively by generated
+clone order. `Reverse` flips the progression.
 Shader Effectors use image luminance to control transform strength. `Invert`
 swaps black and white influence. Planar projection follows the visible image
 controller, and Tiles X/Y repeats the image inside that projection. Preserve

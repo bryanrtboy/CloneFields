@@ -13,12 +13,14 @@ EFFECTOR_TYPE_BASIC = "BASIC"
 EFFECTOR_TYPE_RANDOM = "RANDOM"
 EFFECTOR_TYPE_TARGET = "TARGET"
 EFFECTOR_TYPE_SHADER = "SHADER"
+EFFECTOR_TYPE_STEP = "STEP"
 LEGACY_EFFECTOR_TYPE_PLAIN = "PLAIN"
 EFFECTOR_TYPE_VALUES = {
     EFFECTOR_TYPE_BASIC: 0,
     EFFECTOR_TYPE_RANDOM: 1,
     EFFECTOR_TYPE_TARGET: 2,
     EFFECTOR_TYPE_SHADER: 3,
+    EFFECTOR_TYPE_STEP: 4,
     LEGACY_EFFECTOR_TYPE_PLAIN: 0,
 }
 EFFECTOR_TYPE_ITEMS = (
@@ -26,12 +28,14 @@ EFFECTOR_TYPE_ITEMS = (
     (EFFECTOR_TYPE_RANDOM, "Random", "Random transform effector"),
     (EFFECTOR_TYPE_TARGET, "Target", "Orient clones toward the Effector"),
     (EFFECTOR_TYPE_SHADER, "Shader", "Use image luminance to vary clone transforms"),
+    (EFFECTOR_TYPE_STEP, "Step", "Apply transforms progressively by clone order"),
 )
 EFFECTOR_TYPE_LABELS = {
     EFFECTOR_TYPE_BASIC: "Basic",
     EFFECTOR_TYPE_RANDOM: "Random",
     EFFECTOR_TYPE_TARGET: "Target",
     EFFECTOR_TYPE_SHADER: "Shader",
+    EFFECTOR_TYPE_STEP: "Step",
     LEGACY_EFFECTOR_TYPE_PLAIN: "Basic",
 }
 TARGET_AXIS_ITEMS = (
@@ -223,6 +227,7 @@ def is_effector_object(obj: bpy.types.Object | None) -> bool:
         EFFECTOR_TYPE_RANDOM,
         EFFECTOR_TYPE_TARGET,
         EFFECTOR_TYPE_SHADER,
+        EFFECTOR_TYPE_STEP,
         LEGACY_EFFECTOR_TYPE_PLAIN,
     }
 

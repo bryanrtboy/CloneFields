@@ -146,6 +146,7 @@ def _draw_effectors(layout, settings) -> None:
         add_row.operator("clone_fields.add_target_effector", text="New Target")
         add_row.operator("clone_fields.add_shader_effector", text="New Shader")
         add_row = list_box.row(align=True)
+        add_row.operator("clone_fields.add_step_effector", text="New Step")
         add_row.operator("clone_fields.link_existing_effector", text="Link Existing")
 
     selected_slot = _selected_effector_slot(settings)
@@ -207,6 +208,8 @@ def _draw_effector_slot(layout, settings, slot: dict) -> None:
 def _draw_effector_settings(box, settings, slot, effector_settings) -> None:
     if effector_settings.type == effectors.EFFECTOR_TYPE_RANDOM:
         box.prop(effector_settings, "seed")
+    elif effector_settings.type == effectors.EFFECTOR_TYPE_STEP:
+        box.prop(effector_settings, "invert", text="Reverse")
     elif effector_settings.type == effectors.EFFECTOR_TYPE_SHADER:
         image_row = box.row(align=True)
         image_row.prop_search(
@@ -288,7 +291,10 @@ def _draw_field_settings(box, effector_settings) -> None:
     if effector_settings.shape == effectors.FIELD_SHAPE_CYLINDER:
         box.prop(effector_settings, "height")
     box.prop(effector_settings, "falloff")
-    if effector_settings.type != effectors.EFFECTOR_TYPE_SHADER:
+    if effector_settings.type not in {
+        effectors.EFFECTOR_TYPE_SHADER,
+        effectors.EFFECTOR_TYPE_STEP,
+    }:
         box.prop(effector_settings, "invert", text="Invert Field")
 
 

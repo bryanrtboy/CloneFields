@@ -1001,6 +1001,73 @@ def main() -> None:
             for before, after in zip(seed_7_vertices, seed_19_vertices)
         )
 
+        bpy.ops.mesh.primitive_cube_add(location=(26.0, 0.0, 0.0))
+        step_source = bpy.context.object
+        step_source.name = "Step Effector Source"
+        step_result = bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=step_source.name,
+            count_x=3,
+            count_y=3,
+            count_z=1,
+            spacing_x=2.0,
+            spacing_y=2.0,
+            spacing_z=2.0,
+        )
+        assert step_result == {"FINISHED"}, step_result
+        step_cloner = bpy.context.object
+        step_add_result = bpy.ops.clone_fields.add_step_effector("EXEC_DEFAULT")
+        assert step_add_result == {"FINISHED"}, step_add_result
+        step_effector = step_cloner.clone_fields_cloner.effector_object
+        assert step_effector.name.startswith("Step Effector [None]")
+        assert step_effector.get(props.PROP_EFFECTOR_TYPE) == "STEP"
+        step_settings = step_effector.clone_fields_effector
+        assert step_settings.type == eff.EFFECTOR_TYPE_STEP
+        assert step_settings.shape == eff.FIELD_SHAPE_NONE
+        step_settings.position_z = 8.0
+        step_cloner.update_tag()
+        step_cloner.modifiers["Cloner"].node_group.update_tag()
+        bpy.context.view_layer.update()
+        step_vertices = _evaluated_vertices(step_cloner)
+        min_step_x = min(x for x, _y, _z in step_vertices)
+        max_step_x = max(x for x, _y, _z in step_vertices)
+        min_step_y = min(y for _x, y, _z in step_vertices)
+        max_step_y = max(y for _x, y, _z in step_vertices)
+        first_step_z = [
+            z
+            for x, y, z in step_vertices
+            if x < min_step_x + 1.1 and y < min_step_y + 1.1
+        ]
+        last_step_z = [
+            z
+            for x, y, z in step_vertices
+            if x > max_step_x - 1.1 and y > max_step_y - 1.1
+        ]
+        assert first_step_z and last_step_z
+        step_z_values = {round(z, 3) for _x, _y, z in step_vertices}
+        assert {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0} <= step_z_values, step_z_values
+        assert abs(max(last_step_z) - max(first_step_z) - 8.0) < 0.001
+        step_settings.invert = True
+        step_cloner.update_tag()
+        step_cloner.modifiers["Cloner"].node_group.update_tag()
+        bpy.context.view_layer.update()
+        reversed_step_vertices = _evaluated_vertices(step_cloner)
+        min_reversed_x = min(x for x, _y, _z in reversed_step_vertices)
+        max_reversed_x = max(x for x, _y, _z in reversed_step_vertices)
+        min_reversed_y = min(y for _x, y, _z in reversed_step_vertices)
+        max_reversed_y = max(y for _x, y, _z in reversed_step_vertices)
+        reversed_first_z = [
+            z
+            for x, y, z in reversed_step_vertices
+            if x < min_reversed_x + 1.1 and y < min_reversed_y + 1.1
+        ]
+        reversed_last_z = [
+            z
+            for x, y, z in reversed_step_vertices
+            if x > max_reversed_x - 1.1 and y > max_reversed_y - 1.1
+        ]
+        assert max(reversed_first_z) - max(reversed_last_z) > 7.9
+
         target_mesh = bpy.data.meshes.new("Target Effector Source Mesh")
         target_mesh.from_pydata([(0.0, 0.0, 1.0)], [], [])
         target_mesh.update()

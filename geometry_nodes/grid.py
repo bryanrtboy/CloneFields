@@ -192,7 +192,7 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     )
     socket.default_value = properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_TYPE]
     socket.min_value = 0
-    socket.max_value = 3
+    socket.max_value = 4
     socket = _new_socket(
         interface,
         properties.SOCKET_EFFECTOR_FIELD,
@@ -1113,7 +1113,7 @@ def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> 
     socket = _new_socket(interface, socket_set["type"], "INPUT", "NodeSocketInt", parent=panel)
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["type"]]
     socket.min_value = 0
-    socket.max_value = 2
+    socket.max_value = 4
     socket = _new_socket(interface, socket_set["field"], "INPUT", "NodeSocketInt", parent=panel)
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["field"]]
     socket.min_value = 0
@@ -1224,13 +1224,37 @@ def _build_grid_distribution(
 
     mesh_line_x = _new_mesh_line_node(nodes, (x, y))
     combine_x = _new_combine_xyz_node(nodes, (x - 200, y + 90))
+    x_indexed = _build_store_index_attribute(
+        nodes,
+        links,
+        mesh_line_x,
+        "Mesh",
+        "_cf_step_x",
+        (x + 260, y - 220),
+    )
     instance_x_on_y = _new_node(nodes, "GeometryNodeInstanceOnPoints", (x + 780, y - 80))
 
     mesh_line_y = _new_mesh_line_node(nodes, (x + 520, y))
     combine_y = _new_combine_xyz_node(nodes, (x + 320, y + 90))
+    y_indexed = _build_store_index_attribute(
+        nodes,
+        links,
+        mesh_line_y,
+        "Mesh",
+        "_cf_step_y",
+        (x + 780, y - 220),
+    )
 
     mesh_line_z = _new_mesh_line_node(nodes, (x + 1040, y))
     combine_z = _new_combine_xyz_node(nodes, (x + 840, y + 90))
+    z_indexed = _build_store_index_attribute(
+        nodes,
+        links,
+        mesh_line_z,
+        "Mesh",
+        "_cf_step_z",
+        (x + 1300, y - 220),
+    )
     instance_xy_on_z = _new_node(nodes, "GeometryNodeInstanceOnPoints", (x + 1300, y - 80))
     realize_points = _new_node(nodes, "GeometryNodeRealizeInstances", (x + 1560, y - 80))
     instance_source = _new_node(nodes, "GeometryNodeInstanceOnPoints", (x + 1820, y - 80))
@@ -1302,13 +1326,22 @@ def _build_grid_distribution(
     _link(links, combine_y, "Vector", mesh_line_y, "Offset")
     _link(links, combine_z, "Vector", mesh_line_z, "Offset")
 
-    _link(links, mesh_line_y, "Mesh", instance_x_on_y, "Points")
-    _link(links, mesh_line_x, "Mesh", instance_x_on_y, "Instance")
+    _link(links, y_indexed, "Geometry", instance_x_on_y, "Points")
+    _link(links, x_indexed, "Geometry", instance_x_on_y, "Instance")
 
-    _link(links, mesh_line_z, "Mesh", instance_xy_on_z, "Points")
+    _link(links, z_indexed, "Geometry", instance_xy_on_z, "Points")
     _link(links, instance_x_on_y, "Instances", instance_xy_on_z, "Instance")
 
     _link(links, instance_xy_on_z, "Instances", realize_points, "Geometry")
+    step_index_node, step_index_socket = _build_grid_step_index(
+        nodes,
+        links,
+        group_input,
+        realize_points,
+        "Geometry",
+        counts,
+        (x + 1540, y + 520),
+    )
     points_node, points_socket, rotation_node, rotation_socket, scale_node, scale_socket = (
         _build_all_plain_effector_points(
             nodes,
@@ -1317,6 +1350,8 @@ def _build_grid_distribution(
             realize_points,
             "Geometry",
             (x + 1540, y + 180),
+            step_index_node,
+            step_index_socket,
         )
     )
     _link(links, points_node, points_socket, instance_source, "Points")
@@ -1339,6 +1374,88 @@ def _build_grid_distribution(
     )
 
     return instance_source, "Instances"
+
+
+def _build_grid_step_index(
+    nodes,
+    links,
+    group_input,
+    points_node,
+    points_socket: str,
+    counts,
+    origin: tuple[int, int],
+):
+    x, y = origin
+    index_x = _new_named_float_attribute_node(nodes, "_cf_step_x", (x, y + 220))
+    index_y = _new_named_float_attribute_node(nodes, "_cf_step_y", (x, y + 80))
+    index_z = _new_named_float_attribute_node(nodes, "_cf_step_z", (x, y - 60))
+    count_x = _new_math_node(nodes, (x + 300, y + 220), "MAXIMUM")
+    count_y = _new_math_node(nodes, (x + 300, y + 80), "MAXIMUM")
+    count_z = _new_math_node(nodes, (x + 300, y - 60), "MAXIMUM")
+    y_offset = _new_math_node(nodes, (x + 540, y + 100), "MULTIPLY")
+    xy_count = _new_math_node(nodes, (x + 540, y - 80), "MULTIPLY")
+    z_offset = _new_math_node(nodes, (x + 780, y - 20), "MULTIPLY")
+    add_xy = _new_math_node(nodes, (x + 780, y + 160), "ADD")
+    flat_index = _new_math_node(nodes, (x + 1020, y + 80), "ADD")
+    total_xy = _new_math_node(nodes, (x + 540, y - 240), "MULTIPLY")
+    total_xyz = _new_math_node(nodes, (x + 780, y - 240), "MULTIPLY")
+    total_minus_one = _new_math_node(nodes, (x + 1020, y - 240), "SUBTRACT")
+    safe_total = _new_math_node(nodes, (x + 1260, y - 240), "MAXIMUM")
+    normalized = _new_math_node(nodes, (x + 1260, y + 80), "DIVIDE")
+
+    count_x.inputs[1].default_value = 1.0
+    count_y.inputs[1].default_value = 1.0
+    count_z.inputs[1].default_value = 1.0
+    total_minus_one.inputs[1].default_value = 1.0
+    safe_total.inputs[1].default_value = 1.0
+
+    _set_or_link_value(links, group_input, counts[0], count_x, "Value")
+    _set_or_link_value(links, group_input, counts[1], count_y, "Value")
+    _set_or_link_value(links, group_input, counts[2], count_z, "Value")
+    _link(links, index_y, "Attribute", y_offset, "Value")
+    links.new(count_x.outputs["Value"], y_offset.inputs[1])
+    _link(links, count_x, "Value", xy_count, "Value")
+    links.new(count_y.outputs["Value"], xy_count.inputs[1])
+    _link(links, index_z, "Attribute", z_offset, "Value")
+    links.new(xy_count.outputs["Value"], z_offset.inputs[1])
+    _link(links, index_x, "Attribute", add_xy, "Value")
+    links.new(y_offset.outputs["Value"], add_xy.inputs[1])
+    _link(links, add_xy, "Value", flat_index, "Value")
+    links.new(z_offset.outputs["Value"], flat_index.inputs[1])
+    _link(links, count_x, "Value", total_xy, "Value")
+    links.new(count_y.outputs["Value"], total_xy.inputs[1])
+    _link(links, total_xy, "Value", total_xyz, "Value")
+    links.new(count_z.outputs["Value"], total_xyz.inputs[1])
+    _link(links, total_xyz, "Value", total_minus_one, "Value")
+    _link(links, total_minus_one, "Value", safe_total, "Value")
+    _link(links, flat_index, "Value", normalized, "Value")
+    links.new(safe_total.outputs["Value"], normalized.inputs[1])
+
+    return normalized, "Value"
+
+
+def _build_normalized_point_index(
+    nodes,
+    links,
+    points_node,
+    points_socket: str,
+    origin: tuple[int, int],
+):
+    x, y = origin
+    point_count = _new_node(nodes, "GeometryNodeAttributeDomainSize", (x, y))
+    point_count_minus_one = _new_math_node(nodes, (x + 240, y), "SUBTRACT")
+    safe_point_count = _new_math_node(nodes, (x + 480, y), "MAXIMUM")
+    index = _new_node(nodes, "GeometryNodeInputIndex", (x, y + 160))
+    normalized = _new_math_node(nodes, (x + 720, y + 80), "DIVIDE")
+
+    point_count_minus_one.inputs[1].default_value = 1.0
+    safe_point_count.inputs[1].default_value = 1.0
+    _link(links, points_node, points_socket, point_count, "Geometry")
+    links.new(point_count.outputs["Point Count"], point_count_minus_one.inputs["Value"])
+    _link(links, point_count_minus_one, "Value", safe_point_count, "Value")
+    _link(links, index, "Index", normalized, "Value")
+    links.new(safe_point_count.outputs["Value"], normalized.inputs[1])
+    return normalized, "Value"
 
 
 def _build_spacing_value(
@@ -1552,8 +1669,8 @@ def _build_radial_axis_distribution(
             set_position,
             "Geometry",
             (x + 1840, y + 220),
-            rotation_switch,
-            "Output",
+            base_rotation_node=rotation_switch,
+            base_rotation_socket="Output",
         )
     )
     _link(links, points_node, points_socket, instance, "Points")
@@ -1883,8 +2000,8 @@ def _build_object_distribution(
             capture_direction,
             "Geometry",
             (x + 1340, y + 420),
-            alignment_rotation,
-            "Output",
+            base_rotation_node=alignment_rotation,
+            base_rotation_socket="Output",
         )
     )
     _link(links, points_node, points_socket, instance, "Points")
@@ -1909,6 +2026,8 @@ def _build_all_plain_effector_points(
     points_node,
     points_socket: str,
     origin: tuple[int, int],
+    step_index_node=None,
+    step_index_socket: str | None = None,
     base_rotation_node=None,
     base_rotation_socket: str | None = None,
 ) -> tuple:
@@ -1924,7 +2043,16 @@ def _build_all_plain_effector_points(
     effector_group = _get_or_create_effector_stack_node_group()
     group_node = _new_node(nodes, "GeometryNodeGroup", origin)
     group_node.node_tree = effector_group
+    if step_index_node is None or step_index_socket is None:
+        step_index_node, step_index_socket = _build_normalized_point_index(
+            nodes,
+            links,
+            points_node,
+            points_socket,
+            (origin[0] - 20, origin[1] + 420),
+        )
     _link(links, points_node, points_socket, group_node, properties.SOCKET_GEOMETRY)
+    _link(links, step_index_node, step_index_socket, group_node, properties.SOCKET_STEP_INDEX)
     if base_rotation_node is not None and base_rotation_socket is not None:
         _link(links, base_rotation_node, base_rotation_socket, group_node, "Base Rotation")
     for socket_set in properties.EFFECTOR_SOCKET_SETS:
@@ -1960,6 +2088,7 @@ def _get_or_create_effector_stack_node_group() -> bpy.types.GeometryNodeTree:
     )
     interface = node_group.interface
     _new_socket(interface, properties.SOCKET_GEOMETRY, "INPUT", "NodeSocketGeometry")
+    _new_socket(interface, properties.SOCKET_STEP_INDEX, "INPUT", "NodeSocketFloat")
     _new_socket(interface, "Base Rotation", "INPUT", "NodeSocketRotation")
     _new_socket(interface, properties.SOCKET_GEOMETRY, "OUTPUT", "NodeSocketGeometry")
     _new_socket(interface, "Rotation", "OUTPUT", "NodeSocketRotation")
@@ -2088,6 +2217,9 @@ def _build_plain_effector_points(
     is_random = _new_math_node(nodes, (x + 1940, y + 60), "COMPARE")
     is_target = _new_math_node(nodes, (x + 1940, y + 180), "COMPARE")
     is_shader = _new_math_node(nodes, (x + 1940, y + 300), "COMPARE")
+    is_step = _new_math_node(nodes, (x + 1940, y + 420), "COMPARE")
+    not_step = _new_boolean_math_node(nodes, (x + 1460, y - 300), "NOT")
+    invertible_spatial_type = _new_boolean_math_node(nodes, (x + 1700, y - 180), "AND")
     image_texture = _new_node(nodes, "GeometryNodeImageTexture", (x + 1220, y + 1040))
     image_texture.extension = "CLIP"
     image_texture.interpolation = "Linear"
@@ -2114,6 +2246,10 @@ def _build_plain_effector_points(
     shader_invert_switch = _new_float_switch_node(nodes, (x + 2900, y + 1040))
     shader_weight = _new_float_switch_node(nodes, (x + 1940, y + 1040))
     weighted_strength = _new_math_node(nodes, (x + 2180, y + 1040), "MULTIPLY")
+    inverted_step_index = _new_math_node(nodes, (x + 1940, y + 760), "SUBTRACT")
+    step_index = _new_float_switch_node(nodes, (x + 2420, y + 760))
+    step_strength = _new_math_node(nodes, (x + 3140, y + 760), "MULTIPLY")
+    type_weight = _new_float_switch_node(nodes, (x + 2420, y + 1040))
     index = _new_node(nodes, "GeometryNodeInputIndex", (x + 980, y + 980))
 
     offset = _new_combine_xyz_node(nodes, (x + 980, y + 160))
@@ -2182,6 +2318,9 @@ def _build_plain_effector_points(
     is_target.inputs[2].default_value = 0.001
     is_shader.inputs[1].default_value = 3.0
     is_shader.inputs[2].default_value = 0.001
+    is_step.inputs[1].default_value = 4.0
+    is_step.inputs[2].default_value = 0.001
+    inverted_step_index.inputs[0].default_value = 1.0
     box_half_size.inputs["Scale"].default_value = 0.5
     safe_box_half_size.inputs[1].default_value = (0.000001, 0.000001, 0.000001)
     shader_center.inputs[1].default_value = (0.5, 0.5, 0.5)
@@ -2218,6 +2357,7 @@ def _build_plain_effector_points(
     _link(links, group_input, socket_set["type"], is_random, "Value")
     _link(links, group_input, socket_set["type"], is_target, "Value")
     _link(links, group_input, socket_set["type"], is_shader, "Value")
+    _link(links, group_input, socket_set["type"], is_step, "Value")
     _link(links, position, "Position", distance, "Vector")
     links.new(object_info.outputs["Location"], distance.inputs[1])
     _link(links, position, "Position", local_offset, "Vector")
@@ -2289,8 +2429,11 @@ def _build_plain_effector_points(
     links.new(safe_falloff.outputs["Value"], falloff_weight.inputs[1])
     links.new(falloff_weight.outputs["Value"], inverted_weight.inputs[1])
     _link(links, is_shader, "Value", not_shader, "Boolean")
+    _link(links, is_step, "Value", not_step, "Boolean")
+    _link(links, not_shader, "Boolean", invertible_spatial_type, "Boolean")
+    _link(links, not_step, "Boolean", invertible_spatial_type, "Boolean_001")
     _link(links, group_input, socket_set["invert"], invert_spatial_field, "Boolean")
-    _link(links, not_shader, "Boolean", invert_spatial_field, "Boolean_001")
+    _link(links, invertible_spatial_type, "Boolean", invert_spatial_field, "Boolean_001")
     _link(links, invert_spatial_field, "Boolean", inverse_switch, "Switch")
     _link(links, falloff_weight, "Value", inverse_switch, "False")
     _link(links, inverted_weight, "Value", inverse_switch, "True")
@@ -2343,8 +2486,17 @@ def _build_plain_effector_points(
     _link(links, clipped_shader_luminance, "Value", shader_weight, "True")
     _link(links, strength, "Value", weighted_strength, "Value")
     _link(links, shader_weight, "Output", weighted_strength, "Value_001")
+    _link(links, group_input, properties.SOCKET_STEP_INDEX, inverted_step_index, "Value_001")
+    _link(links, group_input, socket_set["invert"], step_index, "Switch")
+    _link(links, group_input, properties.SOCKET_STEP_INDEX, step_index, "False")
+    _link(links, inverted_step_index, "Value", step_index, "True")
+    _link(links, strength, "Value", step_strength, "Value")
+    _link(links, step_index, "Output", step_strength, "Value_001")
+    _link(links, is_step, "Value", type_weight, "Switch")
+    _link(links, weighted_strength, "Value", type_weight, "False")
+    _link(links, step_strength, "Value", type_weight, "True")
     _link(links, group_input, socket_set["enabled"], enabled_weight, "Switch")
-    _link(links, weighted_strength, "Value", enabled_weight, "True")
+    _link(links, type_weight, "Output", enabled_weight, "True")
     _link(links, group_input, socket_set["use_position"], position_weight, "Switch")
     _link(links, enabled_weight, "Output", position_weight, "True")
     _link(links, group_input, socket_set["use_rotation"], rotation_weight, "Switch")
@@ -2823,6 +2975,32 @@ def _new_vector_switch_node(nodes, location: tuple[int, int]):
 def _new_random_vector_node(nodes, location: tuple[int, int]):
     node = _new_node(nodes, "FunctionNodeRandomValue", location)
     node.data_type = "FLOAT_VECTOR"
+    return node
+
+
+def _build_store_index_attribute(
+    nodes,
+    links,
+    geometry_node,
+    geometry_socket: str,
+    name: str,
+    location: tuple[int, int],
+):
+    store = _new_node(nodes, "GeometryNodeStoreNamedAttribute", location)
+    store.data_type = "FLOAT"
+    store.domain = "POINT"
+    index = _new_node(nodes, "GeometryNodeInputIndex", (location[0] - 240, location[1] - 120))
+    store.inputs["Name"].default_value = name
+    store.inputs["Selection"].default_value = True
+    _link(links, geometry_node, geometry_socket, store, "Geometry")
+    _link(links, index, "Index", store, "Value")
+    return store
+
+
+def _new_named_float_attribute_node(nodes, name: str, location: tuple[int, int]):
+    node = _new_node(nodes, "GeometryNodeInputNamedAttribute", location)
+    node.data_type = "FLOAT"
+    node.inputs["Name"].default_value = name
     return node
 
 

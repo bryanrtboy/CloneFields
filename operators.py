@@ -129,6 +129,16 @@ class CLONE_FIELDS_OT_add_shader_effector(bpy.types.Operator):
         return _add_effector(context, self, effectors.EFFECTOR_TYPE_SHADER)
 
 
+class CLONE_FIELDS_OT_add_step_effector(bpy.types.Operator):
+    bl_idname = "clone_fields.add_step_effector"
+    bl_label = "Add Step Effector"
+    bl_description = "Add a Step Effector that progresses transforms by clone order"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        return _add_effector(context, self, effectors.EFFECTOR_TYPE_STEP)
+
+
 class CLONE_FIELDS_OT_load_shader_image(bpy.types.Operator):
     bl_idname = "clone_fields.load_shader_image"
     bl_label = "Open Shader Image"
@@ -380,6 +390,7 @@ classes = (
     CLONE_FIELDS_OT_add_random_effector,
     CLONE_FIELDS_OT_add_target_effector,
     CLONE_FIELDS_OT_add_shader_effector,
+    CLONE_FIELDS_OT_add_step_effector,
     CLONE_FIELDS_OT_load_shader_image,
     CLONE_FIELDS_OT_clear_shader_image,
     CLONE_FIELDS_OT_fit_shader_to_grid,
@@ -539,6 +550,7 @@ def _add_effector(context, operator, effector_type: str):
             effectors.EFFECTOR_TYPE_RANDOM,
             effectors.EFFECTOR_TYPE_TARGET,
             effectors.EFFECTOR_TYPE_SHADER,
+            effectors.EFFECTOR_TYPE_STEP,
         }
         else getattr(settings, slot_properties["shape"])
     )
@@ -566,6 +578,11 @@ def _add_effector(context, operator, effector_type: str):
             effector.clone_fields_effector.target_axis = "Z"
             effector.clone_fields_effector.target_up_axis = "Y"
         elif effector_type == effectors.EFFECTOR_TYPE_SHADER:
+            effector.clone_fields_effector.use_position = True
+            effector.clone_fields_effector.position_z = 1.0
+            effector.clone_fields_effector.use_rotation = False
+            effector.clone_fields_effector.use_scale = False
+        elif effector_type == effectors.EFFECTOR_TYPE_STEP:
             effector.clone_fields_effector.use_position = True
             effector.clone_fields_effector.position_z = 1.0
             effector.clone_fields_effector.use_rotation = False
