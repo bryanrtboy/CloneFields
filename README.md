@@ -55,10 +55,11 @@ overlap the first. `Align` makes the source transform follow each radial step.
 
 ### Object and Spline Distribution
 
-Mesh objects support `Vertices` and `Polygon Centers`. Alignment can follow
-surface normals or point toward the distribution object's center. `Up Vector`
-controls banking. Its default `None` automatically keeps clones visually upright
-while avoiding pole singularities; `+X`, `+Y`, and `+Z` use a fixed Cloner axis.
+Mesh objects support `Vertices`, `Polygon Centers`, and random-ish `Surface`
+scatter by density. Alignment can follow surface normals or point toward the
+distribution object's center. `Up Vector` controls banking. Its default `None`
+automatically keeps clones visually upright while avoiding pole singularities;
+`+X`, `+Y`, and `+Z` use a fixed Cloner axis.
 
 Curve-like objects provide:
 

@@ -24,11 +24,13 @@ OBJECT_DISTRIBUTION_MODE_ITEMS = (
     ("VERTICES", "Vertices", "Place clones on mesh vertices"),
     ("POLYGONS", "Polygon Centers", "Place clones on mesh polygon centers"),
     ("SPLINE", "Spline Points", "Place clones along a curve or spline"),
+    ("SURFACE", "Surface", "Scatter clones across mesh faces"),
 )
 OBJECT_DISTRIBUTION_MODE_VALUES = {
     "VERTICES": 0,
     "POLYGONS": 1,
     "SPLINE": 2,
+    "SURFACE": 3,
 }
 OBJECT_ALIGNMENT_ITEMS = (
     ("NONE", "None", "Keep the source object's rotation"),
@@ -65,6 +67,14 @@ SPLINE_DISTRIBUTION_VALUES = {
     "COUNT": 1,
     "STEP": 2,
     "EVEN": 3,
+}
+SURFACE_DISTRIBUTION_ITEMS = (
+    ("RANDOM", "Random", "Scatter surface points by density"),
+    ("POISSON", "Poisson", "Scatter surface points with minimum distance spacing"),
+)
+SURFACE_DISTRIBUTION_VALUES = {
+    "RANDOM": 0,
+    "POISSON": 1,
 }
 RADIAL_AXIS_ITEMS = (
     ("Z", "Z", "Rotate around Z"),
@@ -517,6 +527,38 @@ def _sync_object_spline_smooth_rotation(self, context) -> None:
         self,
         properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION,
         self.object_spline_smooth_rotation,
+    )
+
+
+def _sync_object_surface_distribution(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SURFACE_DISTRIBUTION,
+        SURFACE_DISTRIBUTION_VALUES[self.object_surface_distribution],
+    )
+
+
+def _sync_object_surface_density(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SURFACE_DENSITY,
+        self.object_surface_density,
+    )
+
+
+def _sync_object_surface_distance_min(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SURFACE_DISTANCE_MIN,
+        self.object_surface_distance_min,
+    )
+
+
+def _sync_object_surface_seed(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SURFACE_SEED,
+        self.object_surface_seed,
     )
 
 
@@ -1551,6 +1593,36 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
             properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION
         ],
         update=_sync_object_spline_smooth_rotation,
+    )
+    object_surface_distribution: EnumProperty(
+        name="Distribution",
+        items=SURFACE_DISTRIBUTION_ITEMS,
+        default="RANDOM",
+        update=_sync_object_surface_distribution,
+    )
+    object_surface_density: FloatProperty(
+        name="Density",
+        description="Approximate number of surface points per square Blender unit",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_SURFACE_DENSITY],
+        min=0.0,
+        update=_sync_object_surface_density,
+    )
+    object_surface_distance_min: FloatProperty(
+        name="Minimum Distance",
+        description="Minimum spacing between randomly scattered surface points",
+        default=properties.GRID_INPUT_DEFAULTS[
+            properties.SOCKET_OBJECT_SURFACE_DISTANCE_MIN
+        ],
+        min=0.0,
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_sync_object_surface_distance_min,
+    )
+    object_surface_seed: IntProperty(
+        name="Seed",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_SURFACE_SEED],
+        min=0,
+        update=_sync_object_surface_seed,
     )
     object_alignment: EnumProperty(
         name="Alignment",

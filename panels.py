@@ -103,6 +103,12 @@ def _draw_object(layout, settings) -> None:
         row.prop_enum(settings, "object_alignment", "NONE", text="None")
         row.prop_enum(settings, "object_alignment", "TANGENT", text="Tangent")
     else:
+        if settings.object_distribution_mode == "SURFACE":
+            layout.prop(settings, "object_surface_distribution")
+            layout.prop(settings, "object_surface_density")
+            if settings.object_surface_distribution == "POISSON":
+                layout.prop(settings, "object_surface_distance_min")
+            layout.prop(settings, "object_surface_seed")
         row = layout.row(align=True)
         row.use_property_split = False
         row.label(text="Alignment")

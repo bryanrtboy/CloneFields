@@ -312,6 +312,22 @@ def main() -> None:
             modifier,
             props.SOCKET_OBJECT_SPLINE_COUNT,
         )
+        object_surface_density_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_SURFACE_DENSITY,
+        )
+        object_surface_distribution_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_SURFACE_DISTRIBUTION,
+        )
+        object_surface_distance_min_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_SURFACE_DISTANCE_MIN,
+        )
+        object_surface_seed_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_SURFACE_SEED,
+        )
         object_alignment_id = inputs.get_modifier_input_identifier(
             modifier,
             props.SOCKET_OBJECT_ALIGNMENT,
@@ -353,6 +369,10 @@ def main() -> None:
         assert object_distribution_mode_id is not None
         assert object_spline_distribution_id is not None
         assert object_spline_count_id is not None
+        assert object_surface_distribution_id is not None
+        assert object_surface_density_id is not None
+        assert object_surface_distance_min_id is not None
+        assert object_surface_seed_id is not None
         assert object_alignment_id is not None
         assert object_up_vector_id is not None
         assert rotation_z_id is not None
@@ -502,6 +522,34 @@ def main() -> None:
         bpy.context.view_layer.update()
         assert modifier[object_distribution_mode_id] == 1
         assert _evaluated_vertex_count(cloner) == len(source.data.vertices)
+
+        cloner.clone_fields_cloner.object_distribution_mode = "SURFACE"
+        cloner.clone_fields_cloner.object_surface_distribution = "RANDOM"
+        cloner.clone_fields_cloner.object_surface_density = 8.0
+        cloner.clone_fields_cloner.object_surface_distance_min = 0.0
+        cloner.clone_fields_cloner.object_surface_seed = 7
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[object_distribution_mode_id] == 3
+        assert modifier[object_surface_distribution_id] == 0
+        assert abs(modifier[object_surface_density_id] - 8.0) < 0.0001
+        assert abs(modifier[object_surface_distance_min_id]) < 0.0001
+        assert modifier[object_surface_seed_id] == 7
+        dense_surface_count = _evaluated_vertex_count(cloner)
+        assert dense_surface_count > len(source.data.vertices) * 4
+        cloner.clone_fields_cloner.object_surface_distribution = "POISSON"
+        cloner.clone_fields_cloner.object_surface_distance_min = 1.5
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[object_surface_distribution_id] == 1
+        assert abs(modifier[object_surface_distance_min_id] - 1.5) < 0.0001
+        spaced_surface_count = _evaluated_vertex_count(cloner)
+        assert 0 < spaced_surface_count < dense_surface_count, (
+            dense_surface_count,
+            spaced_surface_count,
+        )
 
         tilted_mesh = bpy.data.meshes.new("Tilted Distribution Mesh")
         tilted_mesh.from_pydata(

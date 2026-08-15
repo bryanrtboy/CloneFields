@@ -563,7 +563,7 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         properties.SOCKET_OBJECT_DISTRIBUTION_MODE
     ]
     socket.min_value = 0
-    socket.max_value = 2
+    socket.max_value = 3
     socket = _new_socket(
         interface,
         properties.SOCKET_OBJECT_SPLINE_DISTRIBUTION,
@@ -619,6 +619,52 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     socket.default_value = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION
     ]
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_SURFACE_DISTRIBUTION,
+        "INPUT",
+        "NodeSocketInt",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SURFACE_DISTRIBUTION
+    ]
+    socket.min_value = 0
+    socket.max_value = 1
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_SURFACE_DENSITY,
+        "INPUT",
+        "NodeSocketFloat",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SURFACE_DENSITY
+    ]
+    socket.min_value = 0.0
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_SURFACE_DISTANCE_MIN,
+        "INPUT",
+        "NodeSocketFloat",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SURFACE_DISTANCE_MIN
+    ]
+    socket.min_value = 0.0
+    socket.subtype = "DISTANCE"
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_SURFACE_SEED,
+        "INPUT",
+        "NodeSocketInt",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SURFACE_SEED
+    ]
+    socket.min_value = 0
     socket = _new_socket(
         interface,
         properties.SOCKET_OBJECT_ALIGNMENT,
@@ -900,6 +946,10 @@ _OBJECT_DISTRIBUTION_INPUTS = (
     properties.SOCKET_OBJECT_SPLINE_STEP,
     properties.SOCKET_OBJECT_SPLINE_PER_SPLINE,
     properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION,
+    properties.SOCKET_OBJECT_SURFACE_DISTRIBUTION,
+    properties.SOCKET_OBJECT_SURFACE_DENSITY,
+    properties.SOCKET_OBJECT_SURFACE_DISTANCE_MIN,
+    properties.SOCKET_OBJECT_SURFACE_SEED,
     properties.SOCKET_OBJECT_ALIGNMENT,
     properties.SOCKET_OBJECT_UP_VECTOR,
     *_EFFECTOR_INPUTS,
@@ -2094,6 +2144,18 @@ def _build_object_distribution(
     )
     mesh_vertices = _new_mesh_to_points_node(nodes, (x + 560, y + 260), "VERTICES")
     mesh_faces = _new_mesh_to_points_node(nodes, (x + 560, y + 40), "FACES")
+    random_surface_points = _new_node(
+        nodes,
+        "GeometryNodeDistributePointsOnFaces",
+        (x + 520, y - 120),
+    )
+    poisson_surface_points = _new_node(
+        nodes,
+        "GeometryNodeDistributePointsOnFaces",
+        (x + 520, y - 300),
+    )
+    surface_points_switch = _new_geometry_index_switch_node(nodes, (x + 760, y - 180), 2)
+    surface_normal_switch = _new_vector_index_switch_node(nodes, (x + 760, y - 320), 2)
     evaluated_points = _new_node(nodes, "GeometryNodeCurveToPoints", (x + 500, y - 280))
     count_points = _new_node(nodes, "GeometryNodeCurveToPoints", (x + 500, y - 420))
     step_points = _new_node(nodes, "GeometryNodeCurveToPoints", (x + 500, y - 560))
@@ -2118,8 +2180,8 @@ def _build_object_distribution(
     curve_size = _new_node(nodes, "GeometryNodeAttributeDomainSize", (x + 260, y - 500))
     has_curve = _new_math_node(nodes, (x + 500, y - 500), "GREATER_THAN")
     effective_mode = _new_int_switch_node(nodes, (x + 700, y - 360))
-    points_switch = _new_geometry_index_switch_node(nodes, (x + 900, y - 40), 3)
-    normal_switch = _new_vector_index_switch_node(nodes, (x + 900, y + 260), 3)
+    points_switch = _new_geometry_index_switch_node(nodes, (x + 900, y - 40), 4)
+    normal_switch = _new_vector_index_switch_node(nodes, (x + 900, y + 260), 4)
     position = _new_node(nodes, "GeometryNodeInputPosition", (x + 900, y + 440))
     center_direction = _new_vector_math_node(nodes, (x + 1120, y + 440), "SUBTRACT")
     capture_direction = _new_capture_vector_node(nodes, (x + 1180, y + 160), "POINT", "Center Direction")
@@ -2164,6 +2226,10 @@ def _build_object_distribution(
     center_up_align_euler.inputs["Factor"].default_value = 1.0
     spline_align_euler.inputs["Factor"].default_value = 1.0
     smooth_spline_euler.inputs["Factor"].default_value = 1.0
+    if hasattr(random_surface_points, "distribute_method"):
+        random_surface_points.distribute_method = "RANDOM"
+    if hasattr(poisson_surface_points, "distribute_method"):
+        poisson_surface_points.distribute_method = "POISSON"
 
     _link(links, group_input, properties.SOCKET_OBJECT_DISTRIBUTION_OBJECT, object_info, "Object")
     _link(links, object_info, "Geometry", capture_vertex_normal, "Geometry")
@@ -2172,6 +2238,37 @@ def _build_object_distribution(
     _link(links, normal, "Normal", capture_face_normal, "Surface Normal")
     _link(links, capture_vertex_normal, "Geometry", mesh_vertices, "Mesh")
     _link(links, capture_face_normal, "Geometry", mesh_faces, "Mesh")
+    _link(links, object_info, "Geometry", random_surface_points, "Mesh")
+    _link(links, object_info, "Geometry", poisson_surface_points, "Mesh")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_DENSITY, random_surface_points, "Density")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_DENSITY, poisson_surface_points, "Density Max")
+    _link(
+        links,
+        group_input,
+        properties.SOCKET_OBJECT_SURFACE_DISTANCE_MIN,
+        poisson_surface_points,
+        "Distance Min",
+    )
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_SEED, random_surface_points, "Seed")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_SEED, poisson_surface_points, "Seed")
+    _link(
+        links,
+        group_input,
+        properties.SOCKET_OBJECT_SURFACE_DISTRIBUTION,
+        surface_points_switch,
+        "Index",
+    )
+    _link(
+        links,
+        group_input,
+        properties.SOCKET_OBJECT_SURFACE_DISTRIBUTION,
+        surface_normal_switch,
+        "Index",
+    )
+    _link(links, random_surface_points, "Points", surface_points_switch, "0")
+    _link(links, poisson_surface_points, "Points", surface_points_switch, "1")
+    _link(links, random_surface_points, "Normal", surface_normal_switch, "0")
+    _link(links, poisson_surface_points, "Normal", surface_normal_switch, "1")
     _link(links, object_info, "Geometry", evaluated_points, "Curve")
     _link(links, object_info, "Geometry", count_points, "Curve")
     _link(links, object_info, "Geometry", step_points, "Curve")
@@ -2212,10 +2309,13 @@ def _build_object_distribution(
     _link(links, mesh_vertices, "Points", points_switch, "0")
     _link(links, mesh_faces, "Points", points_switch, "1")
     _link(links, per_spline_points, "Output", points_switch, "2")
+    _link(links, surface_points_switch, "Output", points_switch, "3")
 
     _link(links, effective_mode, "Output", normal_switch, "Index")
     _link(links, capture_vertex_normal, "Surface Normal", normal_switch, "0")
     _link(links, capture_face_normal, "Surface Normal", normal_switch, "1")
+    _link(links, per_spline_normal, "Output", normal_switch, "2")
+    _link(links, surface_normal_switch, "Output", normal_switch, "3")
 
     links.new(object_info.outputs["Location"], center_direction.inputs["Vector"])
     links.new(position.outputs["Position"], center_direction.inputs[1])
@@ -3400,6 +3500,8 @@ def _link(links, from_node, from_socket_name: str, to_node, to_socket_name: str)
 
 def _socket(sockets, name: str):
     socket = sockets.get(name)
+    if socket is None:
+        socket = next((candidate for candidate in sockets if candidate.name == name), None)
     if socket is None:
         available = ", ".join(socket.name for socket in sockets)
         raise RuntimeError(f"Missing socket {name!r}. Available sockets: {available}")
