@@ -9,6 +9,8 @@ from . import modifier_inputs, properties
 
 
 HANDLER_NAME = "_clone_fields_sync_source_visibility"
+MAX_NESTED_CLONER_DEPTH = 3
+_SYNCING_SOURCES = False
 
 
 def assign_source(
@@ -22,7 +24,8 @@ def assign_source(
         return False
 
     if source is not None and (
-        modifier_inputs.is_cloner_object(source) or would_create_cycle(cloner, source)
+        would_create_cycle(cloner, source)
+        or nested_cloner_depth(source) > MAX_NESTED_CLONER_DEPTH
     ):
         return False
 
@@ -74,11 +77,45 @@ def would_create_cycle(
     return False
 
 
+def nested_cloner_depth(source: bpy.types.Object | None) -> int:
+    return _nested_cloner_depth(source, set())
+
+
+def _nested_cloner_depth(source: bpy.types.Object | None, visited: set[int]) -> int:
+    if source is None or not modifier_inputs.is_cloner_object(source):
+        return 0
+    pointer = source.as_pointer()
+    if pointer in visited:
+        return MAX_NESTED_CLONER_DEPTH + 1
+    visited.add(pointer)
+
+    child_depths = [
+        _nested_cloner_depth(child, visited.copy())
+        for child in _source_children(source)
+    ]
+    modifier = modifier_inputs.get_cloner_modifier(source)
+    if modifier is not None:
+        modifier_source = modifier_inputs.get_modifier_input(
+            modifier,
+            properties.SOCKET_SOURCE_OBJECT,
+        )
+        if modifier_source is not None and modifier_source not in _source_children(source):
+            child_depths.append(_nested_cloner_depth(modifier_source, visited.copy()))
+    return 1 + max(child_depths, default=0)
+
+
 def sync_all_source_visibility(*_args) -> None:
-    _ensure_unique_cloner_identities()
-    for obj in bpy.data.objects:
-        if modifier_inputs.is_cloner_object(obj):
-            sync_cloner_source_visibility(obj)
+    global _SYNCING_SOURCES
+    if _SYNCING_SOURCES:
+        return
+    _SYNCING_SOURCES = True
+    try:
+        _ensure_unique_cloner_identities()
+        for obj in bpy.data.objects:
+            if modifier_inputs.is_cloner_object(obj):
+                sync_cloner_source_visibility(obj)
+    finally:
+        _SYNCING_SOURCES = False
 
 
 def sync_cloner_source_visibility(cloner: bpy.types.Object) -> None:
@@ -202,8 +239,7 @@ def _ensure_sources_for_duplicate(
     source_candidates = [
         obj
         for obj in inherited_collection.objects
-        if obj.type in {"MESH", "CURVE", "SURFACE", "FONT", "EMPTY"}
-        and not modifier_inputs.is_cloner_object(obj)
+        if _is_valid_source_child(obj)
     ]
     if not source_candidates:
         return
@@ -248,9 +284,14 @@ def _source_children(cloner: bpy.types.Object) -> list[bpy.types.Object]:
     return [
         child
         for child in cloner.children
-        if child.type in {"MESH", "CURVE", "SURFACE", "FONT", "EMPTY"}
-        and not modifier_inputs.is_cloner_object(child)
+        if _is_valid_source_child(child)
     ]
+
+
+def _is_valid_source_child(obj: bpy.types.Object) -> bool:
+    return obj.type in {"MESH", "CURVE", "SURFACE", "FONT", "EMPTY"} or (
+        modifier_inputs.is_cloner_object(obj)
+    )
 
 
 def _source_collection_for_cloner(cloner: bpy.types.Object) -> bpy.types.Collection:

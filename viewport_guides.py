@@ -340,6 +340,7 @@ def source_bounds_half_extents(cloner: bpy.types.Object) -> Vector:
     cloner_inverse = cloner.matrix_world.inverted()
     for child in cloner.children:
         if modifier_inputs.is_cloner_object(child):
+            _append_evaluated_bounds_points(local_points, cloner_inverse, child)
             continue
         if not hasattr(child, "bound_box"):
             continue
@@ -362,6 +363,21 @@ def source_bounds_half_extents(cloner: bpy.types.Object) -> Vector:
             max(abs(min_z), abs(max_z)),
         )
     )
+
+
+def _append_evaluated_bounds_points(
+    local_points: list[Vector],
+    cloner_inverse,
+    child: bpy.types.Object,
+) -> None:
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    evaluated = child.evaluated_get(depsgraph)
+    mesh = evaluated.to_mesh()
+    try:
+        for vertex in mesh.vertices:
+            local_points.append(cloner_inverse @ (child.matrix_world @ vertex.co))
+    finally:
+        evaluated.to_mesh_clear()
 
 
 def _sphere_lines(

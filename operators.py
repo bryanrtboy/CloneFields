@@ -5,7 +5,7 @@ from pathlib import Path
 import bpy
 from bpy.props import FloatProperty, IntProperty, StringProperty
 
-from . import cloner, effectors, modifier_inputs, properties
+from . import cloner, effectors, modifier_inputs, properties, source_management
 
 
 EFFECTOR_SLOT_PROPERTIES = effectors.EFFECTOR_SLOT_PROPERTIES
@@ -71,8 +71,10 @@ class CLONE_FIELDS_OT_add_cloner(bpy.types.Operator):
         if source_object is None:
             self.report({"ERROR"}, "Select a source object to clone")
             return {"CANCELLED"}
-        if modifier_inputs.is_cloner_object(source_object):
-            self.report({"ERROR"}, "Clone Fields cloners cannot be used as sources yet")
+        if source_management.nested_cloner_depth(source_object) > (
+            source_management.MAX_NESTED_CLONER_DEPTH
+        ):
+            self.report({"ERROR"}, "That cloner chain is too deep to clone")
             return {"CANCELLED"}
 
         cloner.create_grid_cloner(

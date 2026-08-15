@@ -106,8 +106,9 @@ def _sync_source(self, context) -> None:
 
     source = self.source_object
     if source is not None and (
-        modifier_inputs.is_cloner_object(source)
-        or source_management.would_create_cycle(obj, source)
+        source_management.would_create_cycle(obj, source)
+        or source_management.nested_cloner_depth(source)
+        > source_management.MAX_NESTED_CLONER_DEPTH
     ):
         current_source = modifier_inputs.get_modifier_input(
             modifier,

@@ -1647,6 +1647,47 @@ def main() -> None:
         assert second_source.parent == second_cloner
         assert _evaluated_instance_count() > 0
 
+        bpy.ops.mesh.primitive_cube_add(location=(10.0, 0.0, 0.0))
+        nested_base_source = bpy.context.object
+        nested_base_source.name = "Nested Base Source"
+        nested_base_result = bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=nested_base_source.name,
+        )
+        assert nested_base_result == {"FINISHED"}, nested_base_result
+        nested_source_cloner = bpy.context.object
+
+        nested_result = bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=nested_source_cloner.name,
+            count_x=3,
+            count_y=1,
+            count_z=1,
+            spacing_x=2.0,
+        )
+        assert nested_result == {"FINISHED"}, nested_result
+        nested_cloner = bpy.context.object
+        assert nested_source_cloner.parent == nested_cloner
+        assert nested_cloner.clone_fields_cloner.source_object == nested_source_cloner
+        nested_modifier = nested_cloner.modifiers["Cloner"]
+        nested_source_id = inputs.get_modifier_input_identifier(
+            nested_modifier,
+            props.SOCKET_SOURCE_OBJECT,
+        )
+        assert nested_source_id is not None
+        assert nested_modifier[nested_source_id] == nested_source_cloner
+        nested_count_x_id = inputs.get_modifier_input_identifier(
+            nested_modifier,
+            props.SOCKET_COUNT_X,
+        )
+        assert nested_count_x_id is not None
+        assert nested_modifier[nested_count_x_id] == 3
+        nested_vertex_count = _evaluated_vertex_count(nested_cloner)
+        assert nested_vertex_count == len(nested_base_source.data.vertices) * 27, nested_vertex_count
+        nested_cloner.clone_fields_cloner.source_object = nested_cloner
+        assert nested_cloner.clone_fields_cloner.source_object == nested_source_cloner
+        assert sources.nested_cloner_depth(nested_cloner) == 2
+
         bpy.context.view_layer.objects.active = cloner
         cloner.clone_fields_cloner.count_x = 5
         assert modifier[count_x_id] == 5
