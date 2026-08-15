@@ -205,6 +205,7 @@ def main() -> None:
         assert {
             "Distribution",
             "Grid",
+            "Brick",
             "Count",
             "Spacing",
             "Linear",
@@ -234,6 +235,7 @@ def main() -> None:
         }
         assert props.SOURCE_TRANSFORM_NODE_GROUP_NAME in internal_group_names
         assert props.GRID_DISTRIBUTION_NODE_GROUP_NAME in internal_group_names
+        assert props.BRICK_DISTRIBUTION_NODE_GROUP_NAME in internal_group_names
         assert props.LINEAR_DISTRIBUTION_NODE_GROUP_NAME in internal_group_names
         assert props.RADIAL_DISTRIBUTION_NODE_GROUP_NAME in internal_group_names
         assert props.OBJECT_DISTRIBUTION_NODE_GROUP_NAME in internal_group_names
@@ -286,6 +288,14 @@ def main() -> None:
             modifier,
             props.SOCKET_RADIAL_AXIS,
         )
+        brick_row_offset_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_BRICK_ROW_OFFSET,
+        )
+        brick_layer_offset_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_BRICK_LAYER_OFFSET,
+        )
         object_distribution_object_id = inputs.get_modifier_input_identifier(
             modifier,
             props.SOCKET_OBJECT_DISTRIBUTION_OBJECT,
@@ -337,6 +347,8 @@ def main() -> None:
         assert radial_radius_id is not None
         assert radial_arc_id is not None
         assert radial_axis_id is not None
+        assert brick_row_offset_id is not None
+        assert brick_layer_offset_id is not None
         assert object_distribution_object_id is not None
         assert object_distribution_mode_id is not None
         assert object_spline_distribution_id is not None
@@ -423,6 +435,41 @@ def main() -> None:
         radial_bounds = _evaluated_bounds_size(cloner)
         assert radial_bounds[0] > linear_bounds[0]
         assert radial_bounds[1] > linear_bounds[0]
+
+        cloner.clone_fields_cloner.distribution_mode = "BRICK"
+        cloner.clone_fields_cloner.count_x = 3
+        cloner.clone_fields_cloner.count_y = 2
+        cloner.clone_fields_cloner.count_z = 1
+        cloner.clone_fields_cloner.spacing_x = 2.0
+        cloner.clone_fields_cloner.spacing_y = 2.0
+        cloner.clone_fields_cloner.spacing_z = 2.0
+        cloner.clone_fields_cloner.brick_row_offset = 0.5
+        cloner.clone_fields_cloner.brick_layer_offset = 0.0
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[mode_id] == 4
+        assert abs(modifier[brick_row_offset_id] - 0.5) < 0.0001
+        assert abs(modifier[brick_layer_offset_id]) < 0.0001
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 6
+        brick_vertices = _evaluated_vertices(cloner)
+        lower_y = min(vertex[1] for vertex in brick_vertices)
+        upper_y = max(vertex[1] for vertex in brick_vertices)
+        lower_row_x = [
+            vertex[0] for vertex in brick_vertices if vertex[1] < lower_y + 1.1
+        ]
+        upper_row_x = [
+            vertex[0] for vertex in brick_vertices if vertex[1] > upper_y - 1.1
+        ]
+        lower_center_x = (min(lower_row_x) + max(lower_row_x)) / 2.0
+        upper_center_x = (min(upper_row_x) + max(upper_row_x)) / 2.0
+        assert abs((upper_center_x - lower_center_x) - 1.0) < 0.0001
+        cloner.clone_fields_cloner.count_x = 4
+        cloner.clone_fields_cloner.count_y = 1
+        cloner.clone_fields_cloner.count_z = 1
+        cloner.clone_fields_cloner.spacing_x = 6.0
+        cloner.clone_fields_cloner.spacing_y = 2.0
+        cloner.clone_fields_cloner.spacing_z = 2.5
 
         distribution_mesh = bpy.data.meshes.new("Distribution Mesh")
         distribution_mesh.from_pydata(
@@ -1910,6 +1957,20 @@ def main() -> None:
         bpy.context.view_layer.objects.active = grid_alternating_cloner
         gizmos.apply_handle_offset(grid_alternating_cloner, "X", source_half.x + 3.0)
         assert abs(grid_alternating_cloner.clone_fields_cloner.spacing_x - 6.0) < 0.0001
+        grid_alternating_cloner.clone_fields_cloner.distribution_mode = "BRICK"
+        grid_alternating_cloner.clone_fields_cloner.count_x = 3
+        grid_alternating_cloner.clone_fields_cloner.count_y = 2
+        grid_alternating_cloner.clone_fields_cloner.count_z = 1
+        grid_alternating_cloner.clone_fields_cloner.spacing_x = 2.0
+        grid_alternating_cloner.clone_fields_cloner.brick_row_offset = 0.5
+        grid_alternating_cloner.clone_fields_cloner.brick_layer_offset = 0.0
+        gizmos.apply_handle_offset(grid_alternating_cloner, "X", source_half.x + 4.5)
+        assert abs(grid_alternating_cloner.clone_fields_cloner.spacing_x - 3.0) < 0.0001
+        brick_guide_lines = guides._grid_guide_lines(
+            grid_alternating_cloner,
+            grid_alternating_cloner.clone_fields_cloner,
+        )
+        assert max(point[0] for point in brick_guide_lines) > 4.7
         x_direction = gizmos._axis_matrix(grid_alternating_cloner, "X").to_3x3() @ Vector((0.0, 0.0, 1.0))
         y_direction = gizmos._axis_matrix(grid_alternating_cloner, "Y").to_3x3() @ Vector((0.0, 0.0, 1.0))
         z_direction = gizmos._axis_matrix(grid_alternating_cloner, "Z").to_3x3() @ Vector((0.0, 0.0, 1.0))

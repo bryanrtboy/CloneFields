@@ -39,6 +39,7 @@ def main() -> None:
         properties.GRID_NODE_GROUP_NAME,
         properties.SOURCE_TRANSFORM_NODE_GROUP_NAME,
         properties.GRID_DISTRIBUTION_NODE_GROUP_NAME,
+        properties.BRICK_DISTRIBUTION_NODE_GROUP_NAME,
         properties.LINEAR_DISTRIBUTION_NODE_GROUP_NAME,
         properties.RADIAL_DISTRIBUTION_NODE_GROUP_NAME,
         properties.OBJECT_DISTRIBUTION_NODE_GROUP_NAME,

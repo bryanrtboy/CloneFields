@@ -56,7 +56,7 @@ def _draw_viewport_guides() -> None:
     gpu.state.line_width_set(2.0)
     for cloner in selected_cloners:
         settings = cloner.clone_fields_cloner
-        if settings.distribution_mode == "GRID":
+        if settings.distribution_mode in {"GRID", "BRICK"}:
             lines = _grid_guide_lines(cloner, settings)
             _draw_lines(batch_for_shader, shader, lines, (1.0, 0.85, 0.1, 0.9))
         elif settings.distribution_mode == "RADIAL":
@@ -173,14 +173,17 @@ def _draw_lines(batch_for_shader, shader, lines, color) -> None:
 
 def _grid_guide_lines(cloner: bpy.types.Object, settings) -> list[tuple[float, float, float]]:
     source_half = source_bounds_half_extents(cloner)
-    half_x = _grid_axis_half_extent(settings.count_x, settings.spacing_x, settings) + source_half.x
+    point_half_x = _grid_axis_half_extent(settings.count_x, settings.spacing_x, settings)
+    brick_min_x, brick_max_x = _brick_x_offset_range(settings)
+    min_x = -point_half_x + brick_min_x - source_half.x
+    max_x = point_half_x + brick_max_x + source_half.x
     half_y = _grid_axis_half_extent(settings.count_y, settings.spacing_y, settings) + source_half.y
     half_z = _grid_axis_half_extent(settings.count_z, settings.spacing_z, settings) + source_half.z
     matrix = cloner.matrix_world
 
     corners = [
         Vector((x, y, z))
-        for x in (-half_x, half_x)
+        for x in (min_x, max_x)
         for y in (-half_y, half_y)
         for z in (-half_z, half_z)
     ]
@@ -202,12 +205,12 @@ def _grid_guide_lines(cloner: bpy.types.Object, settings) -> list[tuple[float, f
     ):
         lines.extend((tuple(world[first]), tuple(world[second])))
 
-    dot_radius = max(0.05, max(half_x, half_y, half_z) * 0.025)
+    dot_radius = max(0.05, max(abs(min_x), abs(max_x), half_y, half_z) * 0.025)
     for local in (
-        Vector((half_x, 0.0, 0.0)),
+        Vector((max_x, 0.0, 0.0)),
         Vector((0.0, half_y, 0.0)),
         Vector((0.0, 0.0, half_z)),
-        Vector((half_x, half_y, half_z)),
+        Vector((max_x, half_y, half_z)),
     ):
         lines.extend(_sphere_lines(matrix, local, dot_radius))
     return lines
@@ -217,6 +220,22 @@ def _grid_axis_half_extent(count: int, spacing: float, settings) -> float:
     if settings.spacing_mode == "ENDPOINT":
         return max(0.0, spacing * 0.5)
     return max(0.0, (count - 1) * spacing * 0.5)
+
+
+def _grid_axis_step_spacing(count: int, spacing: float, settings) -> float:
+    if settings.spacing_mode == "ENDPOINT":
+        return spacing / max(1, count - 1)
+    return spacing
+
+
+def _brick_x_offset_range(settings) -> tuple[float, float]:
+    if settings.distribution_mode != "BRICK":
+        return 0.0, 0.0
+    step_x = _grid_axis_step_spacing(settings.count_x, settings.spacing_x, settings)
+    row_offset = settings.brick_row_offset * step_x if settings.count_y > 1 else 0.0
+    layer_offset = settings.brick_layer_offset * step_x if settings.count_z > 1 else 0.0
+    offsets = (0.0, row_offset, layer_offset, row_offset + layer_offset)
+    return min(offsets), max(offsets)
 
 
 def _radial_guide_lines(cloner: bpy.types.Object, settings) -> list[tuple[float, float, float]]:

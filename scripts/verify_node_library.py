@@ -34,6 +34,7 @@ def _assert_master(node_group) -> None:
         if node.bl_idname == "GeometryNodeGroup" and node.node_tree is not None
     }
     assert properties.GRID_DISTRIBUTION_NODE_GROUP_NAME in internal_names
+    assert properties.BRICK_DISTRIBUTION_NODE_GROUP_NAME in internal_names
     assert properties.SOURCE_TRANSFORM_NODE_GROUP_NAME in internal_names
     assert properties.LINEAR_DISTRIBUTION_NODE_GROUP_NAME in internal_names
     assert properties.RADIAL_DISTRIBUTION_NODE_GROUP_NAME in internal_names

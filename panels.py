@@ -28,6 +28,8 @@ class CLONE_FIELDS_PT_cloner_modifier(bpy.types.Panel):
 
         if settings.distribution_mode == "GRID":
             _draw_grid(layout, settings)
+        elif settings.distribution_mode == "BRICK":
+            _draw_brick(layout, settings)
         elif settings.distribution_mode == "LINEAR":
             _draw_linear(layout, settings)
         elif settings.distribution_mode == "RADIAL":
@@ -44,6 +46,12 @@ def _draw_grid(layout, settings) -> None:
     _draw_xyz_row(layout, settings, "Count", "count_x", "count_y", "count_z")
     label = "Spacing" if settings.spacing_mode == "PER_STEP" else "Endpoint"
     _draw_xyz_row(layout, settings, label, "spacing_x", "spacing_y", "spacing_z")
+
+
+def _draw_brick(layout, settings) -> None:
+    _draw_grid(layout, settings)
+    layout.prop(settings, "brick_row_offset")
+    layout.prop(settings, "brick_layer_offset")
 
 
 def _draw_linear(layout, settings) -> None:

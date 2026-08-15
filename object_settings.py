@@ -11,12 +11,14 @@ DISTRIBUTION_MODE_ITEMS = (
     ("LINEAR", "Linear", "Linear distribution"),
     ("RADIAL", "Radial", "Radial distribution"),
     ("OBJECT", "Object", "Place clones on another object"),
+    ("BRICK", "Brick", "Stagger rows in a brick pattern"),
 )
 DISTRIBUTION_MODE_VALUES = {
     "GRID": 0,
     "LINEAR": 1,
     "RADIAL": 2,
     "OBJECT": 3,
+    "BRICK": 4,
 }
 OBJECT_DISTRIBUTION_MODE_ITEMS = (
     ("VERTICES", "Vertices", "Place clones on mesh vertices"),
@@ -348,6 +350,18 @@ def _sync_spacing_y(self, context) -> None:
 
 def _sync_spacing_z(self, context) -> None:
     _sync_modifier_value(self, properties.SOCKET_SPACING_Z, self.spacing_z)
+
+
+def _sync_brick_row_offset(self, context) -> None:
+    _sync_modifier_value(self, properties.SOCKET_BRICK_ROW_OFFSET, self.brick_row_offset)
+
+
+def _sync_brick_layer_offset(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_BRICK_LAYER_OFFSET,
+        self.brick_layer_offset,
+    )
 
 
 def _sync_linear_count(self, context) -> None:
@@ -1411,6 +1425,22 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         subtype="DISTANCE",
         unit="LENGTH",
         update=_sync_spacing_z,
+    )
+    brick_row_offset: FloatProperty(
+        name="Row Offset",
+        description="X spacing fraction added to every other row",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_BRICK_ROW_OFFSET],
+        min=-10.0,
+        max=10.0,
+        update=_sync_brick_row_offset,
+    )
+    brick_layer_offset: FloatProperty(
+        name="Layer Offset",
+        description="X spacing fraction added to every other Z layer",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_BRICK_LAYER_OFFSET],
+        min=-10.0,
+        max=10.0,
+        update=_sync_brick_layer_offset,
     )
     linear_count: IntProperty(
         name="Count",

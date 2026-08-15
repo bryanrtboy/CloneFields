@@ -35,6 +35,7 @@ Cloner's Modifier tab; opening Geometry Nodes is not required.
 ### Distribution Modes
 
 - **Grid:** Count and Spacing on X, Y, and Z.
+- **Brick:** Grid counts and spacing with row and layer offsets along X.
 - **Linear:** Count, Spacing, and a direction vector.
 - **Radial:** Count, Radius, Arc, Axis, and optional alignment.
 - **Object:** Place clones on mesh vertices or polygon centers, or along curves,

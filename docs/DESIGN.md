@@ -27,6 +27,7 @@ Cloner distribution modes:
 
 - Linear
 - Grid
+- Brick
 - Radial
 - Object
 - Curve

@@ -9,6 +9,7 @@ GRID_NODE_GROUP_NAME = ".Clone Fields Grid Cloner"
 EFFECTOR_STACK_NODE_GROUP_NAME = ".Clone Fields Effector Stack"
 SOURCE_TRANSFORM_NODE_GROUP_NAME = ".Clone Fields Source Transform"
 GRID_DISTRIBUTION_NODE_GROUP_NAME = ".Clone Fields Distribution Grid"
+BRICK_DISTRIBUTION_NODE_GROUP_NAME = ".Clone Fields Distribution Brick"
 LINEAR_DISTRIBUTION_NODE_GROUP_NAME = ".Clone Fields Distribution Linear"
 RADIAL_DISTRIBUTION_NODE_GROUP_NAME = ".Clone Fields Distribution Radial"
 OBJECT_DISTRIBUTION_NODE_GROUP_NAME = ".Clone Fields Distribution Object"
@@ -25,7 +26,7 @@ PROP_EFFECTOR_SHAPE = "clone_fields_effector_shape"
 PROP_SPACING_MODE_PREVIOUS = "clone_fields_spacing_mode_previous"
 PROP_NODE_GROUP_BUILD_VERSION = "clone_fields_node_group_build_version"
 PROP_INITIALIZING_CLONER = "clone_fields_initializing"
-GRID_NODE_GROUP_BUILD_VERSION = 26
+GRID_NODE_GROUP_BUILD_VERSION = 27
 EFFECTOR_STRENGTH_PERCENT_DEFAULT = 100
 
 SOCKET_GEOMETRY = "Geometry"
@@ -138,7 +139,7 @@ SOCKET_EFFECTOR_3_USE_SCALE = "Effector 3 Use Scale"
 SOCKET_EFFECTOR_3_SCALE_X = "Effector 3 Scale X"
 SOCKET_EFFECTOR_3_SCALE_Y = "Effector 3 Scale Y"
 SOCKET_EFFECTOR_3_SCALE_Z = "Effector 3 Scale Z"
-SOCKET_DISTRIBUTION_MODE = "Mode (0 Grid, 1 Linear, 2 Radial, 3 Object)"
+SOCKET_DISTRIBUTION_MODE = "Mode (0 Grid, 1 Linear, 2 Radial, 3 Object, 4 Brick)"
 SOCKET_SPACING_MODE = "Spacing Mode (0 Per Step, 1 Endpoint)"
 SOCKET_COUNT_X = "Count X"
 SOCKET_COUNT_Y = "Count Y"
@@ -146,6 +147,8 @@ SOCKET_COUNT_Z = "Count Z"
 SOCKET_SPACING_X = "Spacing X"
 SOCKET_SPACING_Y = "Spacing Y"
 SOCKET_SPACING_Z = "Spacing Z"
+SOCKET_BRICK_ROW_OFFSET = "Brick Row Offset"
+SOCKET_BRICK_LAYER_OFFSET = "Brick Layer Offset"
 SOCKET_LINEAR_COUNT = "Linear Count"
 SOCKET_LINEAR_SPACING = "Linear Spacing"
 SOCKET_LINEAR_DIRECTION_X = "Direction X"
@@ -281,6 +284,8 @@ GRID_INPUT_DEFAULTS = {
     SOCKET_SPACING_X: 2.0,
     SOCKET_SPACING_Y: 2.0,
     SOCKET_SPACING_Z: 2.0,
+    SOCKET_BRICK_ROW_OFFSET: 0.5,
+    SOCKET_BRICK_LAYER_OFFSET: 0.0,
     SOCKET_LINEAR_COUNT: 3,
     SOCKET_LINEAR_SPACING: 2.0,
     SOCKET_LINEAR_DIRECTION_X: 1.0,

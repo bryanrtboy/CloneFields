@@ -66,6 +66,7 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     interface.move_to_parent(count_panel, grid_panel, len(grid_panel.interface_items))
     spacing_panel = _new_panel(interface, "Spacing")
     interface.move_to_parent(spacing_panel, grid_panel, len(grid_panel.interface_items))
+    brick_panel = _new_panel(interface, "Brick", default_closed=True)
     linear_panel = _new_panel(interface, "Linear", default_closed=True)
     linear_direction_panel = _new_panel(
         interface,
@@ -398,7 +399,7 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         properties.SOCKET_DISTRIBUTION_MODE
     ]
     socket.min_value = 0
-    socket.max_value = 3
+    socket.max_value = 4
     socket = _new_socket(
         interface,
         properties.SOCKET_SPACING_MODE,
@@ -440,6 +441,21 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
         socket.min_value = 0.0
         socket.subtype = "DISTANCE"
+
+    for name in (
+        properties.SOCKET_BRICK_ROW_OFFSET,
+        properties.SOCKET_BRICK_LAYER_OFFSET,
+    ):
+        socket = _new_socket(
+            interface,
+            name,
+            "INPUT",
+            "NodeSocketFloat",
+            parent=brick_panel,
+        )
+        socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
+        socket.min_value = -10.0
+        socket.max_value = 10.0
 
     socket = _new_socket(
         interface,
@@ -748,6 +764,18 @@ def _create_nodes(
         _build_internal_grid_distribution,
         (x_offset, 250),
     )
+    brick_node = _new_distribution_group_node(
+        node_group,
+        nodes,
+        links,
+        group_input,
+        source_node,
+        source_socket,
+        properties.BRICK_DISTRIBUTION_NODE_GROUP_NAME,
+        _BRICK_DISTRIBUTION_INPUTS,
+        _build_internal_brick_distribution,
+        (x_offset, 450),
+    )
     linear_node = _new_distribution_group_node(
         node_group,
         nodes,
@@ -789,6 +817,7 @@ def _create_nodes(
         links,
         group_input,
         grid=(grid_node, properties.SOCKET_GEOMETRY),
+        brick=(brick_node, properties.SOCKET_GEOMETRY),
         linear=(linear_node, properties.SOCKET_GEOMETRY),
         radial=(radial_node, properties.SOCKET_GEOMETRY),
         object_distribution=(object_node, properties.SOCKET_GEOMETRY),
@@ -828,6 +857,19 @@ _GRID_DISTRIBUTION_INPUTS = (
     properties.SOCKET_SPACING_X,
     properties.SOCKET_SPACING_Y,
     properties.SOCKET_SPACING_Z,
+    *_EFFECTOR_INPUTS,
+)
+_BRICK_DISTRIBUTION_INPUTS = (
+    properties.SOCKET_SOURCE_COUNT,
+    properties.SOCKET_SPACING_MODE,
+    properties.SOCKET_COUNT_X,
+    properties.SOCKET_COUNT_Y,
+    properties.SOCKET_COUNT_Z,
+    properties.SOCKET_SPACING_X,
+    properties.SOCKET_SPACING_Y,
+    properties.SOCKET_SPACING_Z,
+    properties.SOCKET_BRICK_ROW_OFFSET,
+    properties.SOCKET_BRICK_LAYER_OFFSET,
     *_EFFECTOR_INPUTS,
 )
 _LINEAR_DISTRIBUTION_INPUTS = (
@@ -1022,6 +1064,28 @@ def _copy_interface_socket(interface, source_socket):
 
 def _build_internal_grid_distribution(nodes, links, group_input) -> tuple:
     return _build_grid_distribution(
+        nodes,
+        links,
+        source_node=group_input,
+        source_socket=properties.SOCKET_GEOMETRY,
+        counts=(
+            properties.SOCKET_COUNT_X,
+            properties.SOCKET_COUNT_Y,
+            properties.SOCKET_COUNT_Z,
+        ),
+        spacings=(
+            properties.SOCKET_SPACING_X,
+            properties.SOCKET_SPACING_Y,
+            properties.SOCKET_SPACING_Z,
+        ),
+        origin=(-1800, 0),
+        group_input=group_input,
+        source_count=properties.SOCKET_SOURCE_COUNT,
+    )
+
+
+def _build_internal_brick_distribution(nodes, links, group_input) -> tuple:
+    return _build_brick_distribution(
         nodes,
         links,
         source_node=group_input,
@@ -1374,6 +1438,230 @@ def _build_grid_distribution(
     )
 
     return instance_source, "Instances"
+
+
+def _build_brick_distribution(
+    nodes,
+    links,
+    *,
+    source_node,
+    source_socket: str,
+    counts: tuple,
+    spacings: tuple,
+    origin: tuple[int, int],
+    group_input,
+    source_count,
+) -> tuple:
+    x, y = origin
+
+    mesh_line_x = _new_mesh_line_node(nodes, (x, y))
+    combine_x = _new_combine_xyz_node(nodes, (x - 200, y + 90))
+    x_indexed = _build_store_index_attribute(
+        nodes,
+        links,
+        mesh_line_x,
+        "Mesh",
+        "_cf_step_x",
+        (x + 260, y - 220),
+    )
+    instance_x_on_y = _new_node(nodes, "GeometryNodeInstanceOnPoints", (x + 780, y - 80))
+
+    mesh_line_y = _new_mesh_line_node(nodes, (x + 520, y))
+    combine_y = _new_combine_xyz_node(nodes, (x + 320, y + 90))
+    y_indexed = _build_store_index_attribute(
+        nodes,
+        links,
+        mesh_line_y,
+        "Mesh",
+        "_cf_step_y",
+        (x + 780, y - 220),
+    )
+
+    mesh_line_z = _new_mesh_line_node(nodes, (x + 1040, y))
+    combine_z = _new_combine_xyz_node(nodes, (x + 840, y + 90))
+    z_indexed = _build_store_index_attribute(
+        nodes,
+        links,
+        mesh_line_z,
+        "Mesh",
+        "_cf_step_z",
+        (x + 1300, y - 220),
+    )
+    instance_xy_on_z = _new_node(nodes, "GeometryNodeInstanceOnPoints", (x + 1300, y - 80))
+    realize_points = _new_node(nodes, "GeometryNodeRealizeInstances", (x + 1560, y - 80))
+    instance_source = _new_node(nodes, "GeometryNodeInstanceOnPoints", (x + 2080, y - 80))
+
+    _set_or_link_value(links, group_input, counts[0], mesh_line_x, "Count")
+    _set_or_link_value(links, group_input, counts[1], mesh_line_y, "Count")
+    _set_or_link_value(links, group_input, counts[2], mesh_line_z, "Count")
+
+    spacing_x_node, spacing_x_socket = _build_spacing_value(
+        nodes,
+        links,
+        group_input,
+        counts[0],
+        spacings[0],
+        (x - 520, y + 240),
+    )
+    spacing_y_node, spacing_y_socket = _build_spacing_value(
+        nodes,
+        links,
+        group_input,
+        counts[1],
+        spacings[1],
+        (x, y + 240),
+    )
+    spacing_z_node, spacing_z_socket = _build_spacing_value(
+        nodes,
+        links,
+        group_input,
+        counts[2],
+        spacings[2],
+        (x + 520, y + 240),
+    )
+
+    _link(links, spacing_x_node, spacing_x_socket, combine_x, "X")
+    _link(links, spacing_y_node, spacing_y_socket, combine_y, "Y")
+    _link(links, spacing_z_node, spacing_z_socket, combine_z, "Z")
+    _set_centered_line_start(
+        nodes,
+        links,
+        group_input,
+        mesh_line_x,
+        counts[0],
+        (spacing_x_node, spacing_x_socket),
+        "X",
+        (x - 460, y - 90),
+    )
+    _set_centered_line_start(
+        nodes,
+        links,
+        group_input,
+        mesh_line_y,
+        counts[1],
+        (spacing_y_node, spacing_y_socket),
+        "Y",
+        (x + 60, y - 90),
+    )
+    _set_centered_line_start(
+        nodes,
+        links,
+        group_input,
+        mesh_line_z,
+        counts[2],
+        (spacing_z_node, spacing_z_socket),
+        "Z",
+        (x + 580, y - 90),
+    )
+
+    _link(links, combine_x, "Vector", mesh_line_x, "Offset")
+    _link(links, combine_y, "Vector", mesh_line_y, "Offset")
+    _link(links, combine_z, "Vector", mesh_line_z, "Offset")
+
+    _link(links, y_indexed, "Geometry", instance_x_on_y, "Points")
+    _link(links, x_indexed, "Geometry", instance_x_on_y, "Instance")
+    _link(links, z_indexed, "Geometry", instance_xy_on_z, "Points")
+    _link(links, instance_x_on_y, "Instances", instance_xy_on_z, "Instance")
+    _link(links, instance_xy_on_z, "Instances", realize_points, "Geometry")
+
+    brick_points, brick_points_socket = _build_brick_offset_points(
+        nodes,
+        links,
+        group_input,
+        realize_points,
+        "Geometry",
+        (spacing_x_node, spacing_x_socket),
+        (x + 1540, y + 520),
+    )
+    step_index_node, step_index_socket = _build_grid_step_index(
+        nodes,
+        links,
+        group_input,
+        brick_points,
+        brick_points_socket,
+        counts,
+        (x + 1540, y + 300),
+    )
+    points_node, points_socket, rotation_node, rotation_socket, scale_node, scale_socket = (
+        _build_all_plain_effector_points(
+            nodes,
+            links,
+            group_input,
+            brick_points,
+            brick_points_socket,
+            (x + 1800, y + 180),
+            step_index_node,
+            step_index_socket,
+        )
+    )
+    _link(links, points_node, points_socket, instance_source, "Points")
+    _link(links, source_node, source_socket, instance_source, "Instance")
+    _link(links, rotation_node, rotation_socket, instance_source, "Rotation")
+    _link(links, scale_node, scale_socket, instance_source, "Scale")
+    _configure_grid_instance_picker(
+        nodes,
+        links,
+        group_input,
+        instance_source,
+        source_count,
+        counts,
+        (
+            (spacing_x_node, spacing_x_socket),
+            (spacing_y_node, spacing_y_socket),
+            (spacing_z_node, spacing_z_socket),
+        ),
+        (x + 1800, y - 300),
+    )
+
+    return instance_source, "Instances"
+
+
+def _build_brick_offset_points(
+    nodes,
+    links,
+    group_input,
+    points_node,
+    points_socket: str,
+    spacing_x: tuple,
+    origin: tuple[int, int],
+):
+    x, y = origin
+    index_y = _new_named_float_attribute_node(nodes, "_cf_step_y", (x, y + 220))
+    index_z = _new_named_float_attribute_node(nodes, "_cf_step_z", (x, y + 80))
+    row_modulo = _new_math_node(nodes, (x + 240, y + 220), "MODULO")
+    layer_modulo = _new_math_node(nodes, (x + 240, y + 80), "MODULO")
+    row_active = _new_math_node(nodes, (x + 480, y + 220), "GREATER_THAN")
+    layer_active = _new_math_node(nodes, (x + 480, y + 80), "GREATER_THAN")
+    row_spacing = _new_math_node(nodes, (x + 720, y + 220), "MULTIPLY")
+    layer_spacing = _new_math_node(nodes, (x + 720, y + 80), "MULTIPLY")
+    row_offset = _new_math_node(nodes, (x + 960, y + 220), "MULTIPLY")
+    layer_offset = _new_math_node(nodes, (x + 960, y + 80), "MULTIPLY")
+    total_offset = _new_math_node(nodes, (x + 1200, y + 150), "ADD")
+    offset_vector = _new_combine_xyz_node(nodes, (x + 1440, y + 150))
+    set_position = _new_node(nodes, "GeometryNodeSetPosition", (x + 1680, y + 20))
+
+    row_modulo.inputs[1].default_value = 2.0
+    layer_modulo.inputs[1].default_value = 2.0
+    row_active.inputs[1].default_value = 0.5
+    layer_active.inputs[1].default_value = 0.5
+    _link(links, index_y, "Attribute", row_modulo, "Value")
+    _link(links, index_z, "Attribute", layer_modulo, "Value")
+    _link(links, row_modulo, "Value", row_active, "Value")
+    _link(links, layer_modulo, "Value", layer_active, "Value")
+    _link(links, spacing_x[0], spacing_x[1], row_spacing, "Value")
+    _link(links, group_input, properties.SOCKET_BRICK_ROW_OFFSET, row_spacing, "Value_001")
+    _link(links, spacing_x[0], spacing_x[1], layer_spacing, "Value")
+    _link(links, group_input, properties.SOCKET_BRICK_LAYER_OFFSET, layer_spacing, "Value_001")
+    _link(links, row_active, "Value", row_offset, "Value")
+    _link(links, row_spacing, "Value", row_offset, "Value_001")
+    _link(links, layer_active, "Value", layer_offset, "Value")
+    _link(links, layer_spacing, "Value", layer_offset, "Value_001")
+    _link(links, row_offset, "Value", total_offset, "Value")
+    _link(links, layer_offset, "Value", total_offset, "Value_001")
+    _link(links, total_offset, "Value", offset_vector, "X")
+    _link(links, points_node, points_socket, set_position, "Geometry")
+    _link(links, offset_vector, "Vector", set_position, "Offset")
+    return set_position, "Geometry"
 
 
 def _build_grid_step_index(
@@ -2830,18 +3118,20 @@ def _build_distribution_switch(
     group_input,
     *,
     grid: tuple,
+    brick: tuple,
     linear: tuple,
     radial: tuple,
     object_distribution: tuple,
     location: tuple[int, int],
 ) -> tuple:
-    switch = _new_geometry_index_switch_node(nodes, location, 4)
+    switch = _new_geometry_index_switch_node(nodes, location, 5)
 
     _link(links, group_input, properties.SOCKET_DISTRIBUTION_MODE, switch, "Index")
     _link(links, grid[0], grid[1], switch, "0")
     _link(links, linear[0], linear[1], switch, "1")
     _link(links, radial[0], radial[1], switch, "2")
     _link(links, object_distribution[0], object_distribution[1], switch, "3")
+    _link(links, brick[0], brick[1], switch, "4")
     return switch, "Output"
 
 

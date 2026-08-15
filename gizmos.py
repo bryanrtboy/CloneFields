@@ -65,7 +65,7 @@ class CLONE_FIELDS_GGT_cloner_handles(bpy.types.GizmoGroup):
             return
 
         settings = cloner.clone_fields_cloner
-        is_grid = settings.distribution_mode == "GRID"
+        is_grid = settings.distribution_mode in {"GRID", "BRICK"}
         is_radial = settings.distribution_mode == "RADIAL"
         for axis, gizmo in self.axis_gizmos.items():
             gizmo.hide = not is_grid
@@ -87,6 +87,9 @@ class CLONE_FIELDS_GGT_cloner_handles(bpy.types.GizmoGroup):
         count = getattr(settings, f"count_{axis.lower()}")
         spacing = getattr(settings, f"spacing_{axis.lower()}")
         source_half = getattr(source_bounds_half_extents(cloner), axis.lower())
+        if axis == "X" and settings.distribution_mode == "BRICK":
+            point_half_extent = _grid_axis_half_extent(count, spacing, settings)
+            return point_half_extent + _brick_max_x_offset(settings) + source_half
         if settings.spacing_mode == "ENDPOINT":
             return max(0.0, spacing * 0.5) + source_half
         return max(0.0, (count - 1) * spacing * 0.5) + source_half
@@ -137,6 +140,9 @@ def apply_handle_offset(cloner: bpy.types.Object, axis: str, value: float) -> No
     count = getattr(settings, f"count_{axis.lower()}")
     source_half = getattr(source_bounds_half_extents(cloner), axis.lower())
     point_half_extent = max(0.0, value - source_half)
+    if axis == "X" and settings.distribution_mode == "BRICK":
+        _apply_brick_x_handle_offset(settings, count, point_half_extent)
+        return
     if settings.spacing_mode == "ENDPOINT":
         setattr(settings, f"spacing_{axis.lower()}", point_half_extent * 2.0)
         return
@@ -153,6 +159,36 @@ def _refresh_cloner(cloner: bpy.types.Object) -> None:
         modifier.node_group.update_tag()
     if bpy.context.view_layer is not None:
         bpy.context.view_layer.update()
+
+
+def _grid_axis_half_extent(count: int, spacing: float, settings) -> float:
+    if settings.spacing_mode == "ENDPOINT":
+        return max(0.0, spacing * 0.5)
+    return max(0.0, (count - 1) * spacing * 0.5)
+
+
+def _grid_axis_step_spacing(count: int, spacing: float, settings) -> float:
+    if settings.spacing_mode == "ENDPOINT":
+        return spacing / max(1, count - 1)
+    return spacing
+
+
+def _brick_max_x_offset(settings) -> float:
+    step_x = _grid_axis_step_spacing(settings.count_x, settings.spacing_x, settings)
+    row_offset = settings.brick_row_offset * step_x if settings.count_y > 1 else 0.0
+    layer_offset = settings.brick_layer_offset * step_x if settings.count_z > 1 else 0.0
+    return max(0.0, row_offset, layer_offset, row_offset + layer_offset)
+
+
+def _apply_brick_x_handle_offset(settings, count: int, point_max_x: float) -> None:
+    row_factor = settings.brick_row_offset if settings.count_y > 1 else 0.0
+    layer_factor = settings.brick_layer_offset if settings.count_z > 1 else 0.0
+    positive_factor = max(0.0, row_factor, layer_factor, row_factor + layer_factor)
+    denominator = max(0.0, (count - 1) * 0.5) + positive_factor
+    spacing = point_max_x / denominator if denominator > 0.0 else 0.0
+    if settings.spacing_mode == "ENDPOINT":
+        spacing *= max(1, count - 1)
+    settings.spacing_x = spacing
 
 
 classes = (CLONE_FIELDS_GGT_cloner_handles,)
