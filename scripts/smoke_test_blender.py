@@ -304,6 +304,18 @@ def main() -> None:
             modifier,
             props.SOCKET_OBJECT_DISTRIBUTION_MODE,
         )
+        object_use_vertex_map_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_USE_VERTEX_MAP,
+        )
+        object_vertex_map_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_VERTEX_MAP,
+        )
+        object_vertex_map_threshold_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_VERTEX_MAP_THRESHOLD,
+        )
         object_spline_distribution_id = inputs.get_modifier_input_identifier(
             modifier,
             props.SOCKET_OBJECT_SPLINE_DISTRIBUTION,
@@ -315,6 +327,22 @@ def main() -> None:
         object_surface_density_id = inputs.get_modifier_input_identifier(
             modifier,
             props.SOCKET_OBJECT_SURFACE_DENSITY,
+        )
+        object_surface_count_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_SURFACE_COUNT,
+        )
+        object_surface_u_count_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_SURFACE_U_COUNT,
+        )
+        object_surface_v_count_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_SURFACE_V_COUNT,
+        )
+        object_surface_uv_map_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_OBJECT_SURFACE_UV_MAP,
         )
         object_surface_distribution_id = inputs.get_modifier_input_identifier(
             modifier,
@@ -367,9 +395,16 @@ def main() -> None:
         assert brick_layer_offset_id is not None
         assert object_distribution_object_id is not None
         assert object_distribution_mode_id is not None
+        assert object_use_vertex_map_id is not None
+        assert object_vertex_map_id is not None
+        assert object_vertex_map_threshold_id is not None
         assert object_spline_distribution_id is not None
         assert object_spline_count_id is not None
         assert object_surface_distribution_id is not None
+        assert object_surface_count_id is not None
+        assert object_surface_u_count_id is not None
+        assert object_surface_v_count_id is not None
+        assert object_surface_uv_map_id is not None
         assert object_surface_density_id is not None
         assert object_surface_distance_min_id is not None
         assert object_surface_seed_id is not None
@@ -502,9 +537,18 @@ def main() -> None:
             [],
             [(0, 1, 2, 3)],
         )
+        uv_layer = distribution_mesh.uv_layers.new(name="CloneUV")
+        for uv, value in zip(
+            uv_layer.data,
+            ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+            strict=True,
+        ):
+            uv.uv = value
         distribution_mesh.update()
         distribution_object = bpy.data.objects.new("Distribution Object", distribution_mesh)
         bpy.context.collection.objects.link(distribution_object)
+        vertex_group = distribution_object.vertex_groups.new(name="CloneMask")
+        vertex_group.add([0, 1], 1.0, "ADD")
         cloner.clone_fields_cloner.distribution_mode = "OBJECT"
         cloner.clone_fields_cloner.object_distribution_object = distribution_object
         cloner.clone_fields_cloner.object_distribution_mode = "VERTICES"
@@ -515,6 +559,17 @@ def main() -> None:
         assert modifier[object_distribution_object_id] == distribution_object
         assert modifier[object_distribution_mode_id] == 0
         assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 4
+        cloner.clone_fields_cloner.object_use_vertex_map = True
+        cloner.clone_fields_cloner.object_vertex_map = "CloneMask"
+        cloner.clone_fields_cloner.object_vertex_map_threshold = 0.5
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[object_use_vertex_map_id]
+        assert modifier[object_vertex_map_id] == "CloneMask"
+        assert abs(modifier[object_vertex_map_threshold_id] - 0.5) < 0.0001
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 2
+        cloner.clone_fields_cloner.object_use_vertex_map = False
 
         cloner.clone_fields_cloner.object_distribution_mode = "POLYGONS"
         cloner.update_tag()
@@ -538,6 +593,18 @@ def main() -> None:
         assert modifier[object_surface_seed_id] == 7
         dense_surface_count = _evaluated_vertex_count(cloner)
         assert dense_surface_count > len(source.data.vertices) * 4
+        cloner.clone_fields_cloner.object_use_vertex_map = True
+        cloner.clone_fields_cloner.object_vertex_map = "CloneMask"
+        cloner.clone_fields_cloner.object_vertex_map_threshold = 0.5
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        filtered_surface_count = _evaluated_vertex_count(cloner)
+        assert 0 < filtered_surface_count < dense_surface_count, (
+            filtered_surface_count,
+            dense_surface_count,
+        )
+        cloner.clone_fields_cloner.object_use_vertex_map = False
         cloner.clone_fields_cloner.object_surface_distribution = "POISSON"
         cloner.clone_fields_cloner.object_surface_distance_min = 1.5
         cloner.update_tag()
@@ -550,6 +617,65 @@ def main() -> None:
             dense_surface_count,
             spaced_surface_count,
         )
+        cloner.clone_fields_cloner.object_surface_distribution = "COUNT"
+        cloner.clone_fields_cloner.object_surface_count = 6
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[object_surface_distribution_id] == 2
+        assert modifier[object_surface_count_id] == 6
+        low_count_surface_count = _evaluated_vertex_count(cloner)
+        cloner.clone_fields_cloner.object_surface_count = 24
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        high_count_surface_count = _evaluated_vertex_count(cloner)
+        assert 0 < low_count_surface_count < high_count_surface_count, (
+            low_count_surface_count,
+            high_count_surface_count,
+        )
+        cloner.clone_fields_cloner.object_surface_distribution = "EVEN"
+        cloner.clone_fields_cloner.object_surface_count = 6
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[object_surface_distribution_id] == 3
+        even_low_count = _evaluated_vertex_count(cloner)
+        cloner.clone_fields_cloner.object_surface_count = 24
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        even_high_count = _evaluated_vertex_count(cloner)
+        assert 0 < even_low_count < even_high_count, (
+            even_low_count,
+            even_high_count,
+        )
+        cloner.clone_fields_cloner.object_surface_distribution = "UV_GRID"
+        cloner.clone_fields_cloner.object_surface_u_count = 3
+        cloner.clone_fields_cloner.object_surface_v_count = 2
+        cloner.clone_fields_cloner.object_surface_uv_map = "CloneUV"
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[object_surface_distribution_id] == 4
+        assert modifier[object_surface_u_count_id] == 3
+        assert modifier[object_surface_v_count_id] == 2
+        assert modifier[object_surface_uv_map_id] == "CloneUV"
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 6
+        cloner.clone_fields_cloner.object_use_vertex_map = True
+        cloner.clone_fields_cloner.object_vertex_map = "CloneMask"
+        cloner.clone_fields_cloner.object_vertex_map_threshold = 0.5
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 3
+        cloner.clone_fields_cloner.object_use_vertex_map = False
+        cloner.clone_fields_cloner.object_surface_uv_map = "MissingUV"
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[object_surface_uv_map_id] == "MissingUV"
+        assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 6
 
         tilted_mesh = bpy.data.meshes.new("Tilted Distribution Mesh")
         tilted_mesh.from_pydata(
@@ -900,6 +1026,7 @@ def main() -> None:
         original_bounds = _evaluated_bounds_size(cloner)
         original_center = _evaluated_bounds_center(cloner)
 
+        cloner.clone_fields_cloner.show_source_offset = True
         cloner.clone_fields_cloner.source_scale_x = 2.0
         cloner.clone_fields_cloner.source_rotation_z = 1.5707963267948966
         assert abs(modifier[scale_x_id] - 2.0) < 0.0001
@@ -912,6 +1039,21 @@ def main() -> None:
 
         cloner.clone_fields_cloner.source_position_y = 1.25
         assert abs(modifier[position_y_id] - 1.25) < 0.0001
+        cloner.clone_fields_cloner.show_source_offset = False
+        assert abs(modifier[position_y_id]) < 0.0001
+        assert abs(modifier[rotation_z_id]) < 0.0001
+        assert abs(modifier[scale_x_id] - 1.0) < 0.0001
+        neutral_bounds = _evaluated_bounds_size(cloner)
+        neutral_center = _evaluated_bounds_center(cloner)
+        assert max(abs(neutral_bounds[i] - original_bounds[i]) for i in range(3)) < 0.0001
+        assert max(abs(neutral_center[i] - original_center[i]) for i in range(3)) < 0.0001
+        assert abs(cloner.clone_fields_cloner.source_position_y - 1.25) < 0.0001
+        assert abs(cloner.clone_fields_cloner.source_rotation_z - 1.5707963267948966) < 0.0001
+        assert abs(cloner.clone_fields_cloner.source_scale_x - 2.0) < 0.0001
+        cloner.clone_fields_cloner.show_source_offset = True
+        assert abs(modifier[position_y_id] - 1.25) < 0.0001
+        assert abs(modifier[rotation_z_id] - 1.5707963267948966) < 0.0001
+        assert abs(modifier[scale_x_id] - 2.0) < 0.0001
 
         modifier[count_x_id] = 4
         assert modifier[count_x_id] == 4
@@ -1009,6 +1151,16 @@ def main() -> None:
         assert effector_cloner.clone_fields_cloner.effector_strength == 100
         positioned_effector_center = _evaluated_bounds_center(effector_cloner)
         assert positioned_effector_center[2] > base_effector_center[2]
+        plain_effector_settings.use_position = False
+        neutral_effector_center = _evaluated_bounds_center(effector_cloner)
+        assert max(
+            abs(neutral_effector_center[i] - base_effector_center[i])
+            for i in range(3)
+        ) < 0.0001
+        assert abs(plain_effector_settings.position_z - 1.0) < 0.0001
+        plain_effector_settings.use_position = True
+        restored_effector_center = _evaluated_bounds_center(effector_cloner)
+        assert restored_effector_center[2] > base_effector_center[2]
         effector_modifier = effector_cloner.modifiers["Cloner"]
         effector_object_id = _modifier_input_id(
             inputs,
@@ -1776,6 +1928,7 @@ def main() -> None:
             count_z=1,
         )
         rotation_probe_cloner = bpy.context.object
+        rotation_probe_cloner.clone_fields_cloner.show_source_offset = True
         rotation_probe_cloner.clone_fields_cloner.source_rotation_y = 1.5707963267948966
         rotation_probe_cloner.clone_fields_cloner.source_rotation_z = 1.5707963267948966
         rotation_probe_vertices = _evaluated_vertices(rotation_probe_cloner)

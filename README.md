@@ -55,9 +55,14 @@ overlap the first. `Align` makes the source transform follow each radial step.
 
 ### Object and Spline Distribution
 
-Mesh objects support `Vertices`, `Polygon Centers`, and random-ish `Surface`
-scatter by density. Alignment can follow surface normals or point toward the
-distribution object's center. `Up Vector` controls banking. Its default `None`
+Mesh objects support `Vertices`, `Polygon Centers`, and `Surface` scatter.
+Surface distribution can be density-driven with `Random` or `Poisson`, or
+target-count driven with `Count` or `Even`. `UV Grid` uses the named UV map
+to place an exact `U Count` by `V Count` grid where that UV map is valid.
+Mesh Object modes can be limited by a named vertex group with a threshold,
+including vertex, polygon-center, and surface scatter placement.
+Alignment can follow surface normals or point toward the distribution object's
+center. `Up Vector` controls banking. Its default `None`
 automatically keeps clones visually upright while avoiding pole singularities;
 `+X`, `+Y`, and `+Z` use a fixed Cloner axis.
 

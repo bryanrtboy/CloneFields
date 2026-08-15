@@ -1,7 +1,14 @@
 """Object-level settings shown in the Clone Fields cloner panel."""
 
 import bpy
-from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, PointerProperty
+from bpy.props import (
+    BoolProperty,
+    EnumProperty,
+    FloatProperty,
+    IntProperty,
+    PointerProperty,
+    StringProperty,
+)
 
 from . import effectors, modifier_inputs, properties, source_management
 
@@ -71,10 +78,16 @@ SPLINE_DISTRIBUTION_VALUES = {
 SURFACE_DISTRIBUTION_ITEMS = (
     ("RANDOM", "Random", "Scatter surface points by density"),
     ("POISSON", "Poisson", "Scatter surface points with minimum distance spacing"),
+    ("COUNT", "Count", "Scatter an approximate target number of surface points"),
+    ("EVEN", "Even", "Scatter an approximate target count with more even spacing"),
+    ("UV_GRID", "UV Grid", "Place clones in a regular grid across the object's UV map"),
 )
 SURFACE_DISTRIBUTION_VALUES = {
     "RANDOM": 0,
     "POISSON": 1,
+    "COUNT": 2,
+    "EVEN": 3,
+    "UV_GRID": 4,
 }
 RADIAL_AXIS_ITEMS = (
     ("Z", "Z", "Rotate around Z"),
@@ -530,6 +543,30 @@ def _sync_object_spline_smooth_rotation(self, context) -> None:
     )
 
 
+def _sync_object_use_vertex_map(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_USE_VERTEX_MAP,
+        self.object_use_vertex_map,
+    )
+
+
+def _sync_object_vertex_map(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_VERTEX_MAP,
+        self.object_vertex_map,
+    )
+
+
+def _sync_object_vertex_map_threshold(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_VERTEX_MAP_THRESHOLD,
+        self.object_vertex_map_threshold,
+    )
+
+
 def _sync_object_surface_distribution(self, context) -> None:
     _sync_modifier_value(
         self,
@@ -543,6 +580,38 @@ def _sync_object_surface_density(self, context) -> None:
         self,
         properties.SOCKET_OBJECT_SURFACE_DENSITY,
         self.object_surface_density,
+    )
+
+
+def _sync_object_surface_count(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SURFACE_COUNT,
+        self.object_surface_count,
+    )
+
+
+def _sync_object_surface_u_count(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SURFACE_U_COUNT,
+        self.object_surface_u_count,
+    )
+
+
+def _sync_object_surface_v_count(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SURFACE_V_COUNT,
+        self.object_surface_v_count,
+    )
+
+
+def _sync_object_surface_uv_map(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_OBJECT_SURFACE_UV_MAP,
+        self.object_surface_uv_map,
     )
 
 
@@ -579,39 +648,108 @@ def _sync_object_up_vector(self, context) -> None:
 
 
 def _sync_source_position_x(self, context) -> None:
-    _sync_modifier_value(self, properties.SOCKET_SOURCE_POSITION_X, self.source_position_x)
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_SOURCE_POSITION_X,
+        self.source_position_x if self.show_source_offset else 0.0,
+    )
 
 
 def _sync_source_position_y(self, context) -> None:
-    _sync_modifier_value(self, properties.SOCKET_SOURCE_POSITION_Y, self.source_position_y)
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_SOURCE_POSITION_Y,
+        self.source_position_y if self.show_source_offset else 0.0,
+    )
 
 
 def _sync_source_position_z(self, context) -> None:
-    _sync_modifier_value(self, properties.SOCKET_SOURCE_POSITION_Z, self.source_position_z)
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_SOURCE_POSITION_Z,
+        self.source_position_z if self.show_source_offset else 0.0,
+    )
 
 
 def _sync_source_rotation_x(self, context) -> None:
-    _sync_modifier_value(self, properties.SOCKET_SOURCE_ROTATION_X, self.source_rotation_x)
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_SOURCE_ROTATION_X,
+        self.source_rotation_x if self.show_source_offset else 0.0,
+    )
 
 
 def _sync_source_rotation_y(self, context) -> None:
-    _sync_modifier_value(self, properties.SOCKET_SOURCE_ROTATION_Y, self.source_rotation_y)
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_SOURCE_ROTATION_Y,
+        self.source_rotation_y if self.show_source_offset else 0.0,
+    )
 
 
 def _sync_source_rotation_z(self, context) -> None:
-    _sync_modifier_value(self, properties.SOCKET_SOURCE_ROTATION_Z, self.source_rotation_z)
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_SOURCE_ROTATION_Z,
+        self.source_rotation_z if self.show_source_offset else 0.0,
+    )
 
 
 def _sync_source_scale_x(self, context) -> None:
-    _sync_modifier_value(self, properties.SOCKET_SOURCE_SCALE_X, self.source_scale_x)
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_SOURCE_SCALE_X,
+        self.source_scale_x if self.show_source_offset else 1.0,
+    )
 
 
 def _sync_source_scale_y(self, context) -> None:
-    _sync_modifier_value(self, properties.SOCKET_SOURCE_SCALE_Y, self.source_scale_y)
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_SOURCE_SCALE_Y,
+        self.source_scale_y if self.show_source_offset else 1.0,
+    )
 
 
 def _sync_source_scale_z(self, context) -> None:
-    _sync_modifier_value(self, properties.SOCKET_SOURCE_SCALE_Z, self.source_scale_z)
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_SOURCE_SCALE_Z,
+        self.source_scale_z if self.show_source_offset else 1.0,
+    )
+
+
+def _sync_show_source_offset(self, context) -> None:
+    if self.id_data.get(properties.PROP_INITIALIZING_CLONER):
+        return
+    modifier = modifier_inputs.get_cloner_modifier(self.id_data)
+    if modifier is None:
+        return
+    if self.show_source_offset:
+        values = {
+            properties.SOCKET_SOURCE_POSITION_X: self.source_position_x,
+            properties.SOCKET_SOURCE_POSITION_Y: self.source_position_y,
+            properties.SOCKET_SOURCE_POSITION_Z: self.source_position_z,
+            properties.SOCKET_SOURCE_ROTATION_X: self.source_rotation_x,
+            properties.SOCKET_SOURCE_ROTATION_Y: self.source_rotation_y,
+            properties.SOCKET_SOURCE_ROTATION_Z: self.source_rotation_z,
+            properties.SOCKET_SOURCE_SCALE_X: self.source_scale_x,
+            properties.SOCKET_SOURCE_SCALE_Y: self.source_scale_y,
+            properties.SOCKET_SOURCE_SCALE_Z: self.source_scale_z,
+        }
+    else:
+        values = {
+            properties.SOCKET_SOURCE_POSITION_X: 0.0,
+            properties.SOCKET_SOURCE_POSITION_Y: 0.0,
+            properties.SOCKET_SOURCE_POSITION_Z: 0.0,
+            properties.SOCKET_SOURCE_ROTATION_X: 0.0,
+            properties.SOCKET_SOURCE_ROTATION_Y: 0.0,
+            properties.SOCKET_SOURCE_ROTATION_Z: 0.0,
+            properties.SOCKET_SOURCE_SCALE_X: 1.0,
+            properties.SOCKET_SOURCE_SCALE_Y: 1.0,
+            properties.SOCKET_SOURCE_SCALE_Z: 1.0,
+        }
+    modifier_inputs.set_modifier_inputs(modifier, values)
 
 
 def _sync_modifier_value(self, socket_name: str, value) -> None:
@@ -1594,6 +1732,29 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         ],
         update=_sync_object_spline_smooth_rotation,
     )
+    object_use_vertex_map: BoolProperty(
+        name="Use Vertex Map",
+        description="Limit mesh Object distribution to a named vertex group",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_USE_VERTEX_MAP],
+        update=_sync_object_use_vertex_map,
+    )
+    object_vertex_map: StringProperty(
+        name="Vertex Map",
+        description="Vertex group name used to filter Object distribution",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_VERTEX_MAP],
+        update=_sync_object_vertex_map,
+    )
+    object_vertex_map_threshold: FloatProperty(
+        name="Threshold",
+        description="Minimum vertex group weight included by the Object distribution",
+        default=properties.GRID_INPUT_DEFAULTS[
+            properties.SOCKET_OBJECT_VERTEX_MAP_THRESHOLD
+        ],
+        min=0.0,
+        max=1.0,
+        subtype="FACTOR",
+        update=_sync_object_vertex_map_threshold,
+    )
     object_surface_distribution: EnumProperty(
         name="Distribution",
         items=SURFACE_DISTRIBUTION_ITEMS,
@@ -1606,6 +1767,33 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_SURFACE_DENSITY],
         min=0.0,
         update=_sync_object_surface_density,
+    )
+    object_surface_count: IntProperty(
+        name="Count",
+        description="Approximate number of surface points",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_SURFACE_COUNT],
+        min=1,
+        update=_sync_object_surface_count,
+    )
+    object_surface_u_count: IntProperty(
+        name="U Count",
+        description="Number of surface grid points across the UV map's U direction",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_SURFACE_U_COUNT],
+        min=1,
+        update=_sync_object_surface_u_count,
+    )
+    object_surface_v_count: IntProperty(
+        name="V Count",
+        description="Number of surface grid points across the UV map's V direction",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_SURFACE_V_COUNT],
+        min=1,
+        update=_sync_object_surface_v_count,
+    )
+    object_surface_uv_map: StringProperty(
+        name="UV Map",
+        description="UV map name used by UV Grid surface distribution",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_SURFACE_UV_MAP],
+        update=_sync_object_surface_uv_map,
     )
     object_surface_distance_min: FloatProperty(
         name="Minimum Distance",
@@ -1699,6 +1887,7 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
     show_source_offset: BoolProperty(
         name="Offset",
         default=False,
+        update=_sync_show_source_offset,
     )
     selected_effector_slot: IntProperty(
         name="Selected Effector",

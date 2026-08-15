@@ -105,10 +105,22 @@ def _draw_object(layout, settings) -> None:
     else:
         if settings.object_distribution_mode == "SURFACE":
             layout.prop(settings, "object_surface_distribution")
-            layout.prop(settings, "object_surface_density")
+            if settings.object_surface_distribution == "UV_GRID":
+                layout.prop(settings, "object_surface_u_count")
+                layout.prop(settings, "object_surface_v_count")
+                layout.prop(settings, "object_surface_uv_map")
+            elif settings.object_surface_distribution in {"COUNT", "EVEN"}:
+                layout.prop(settings, "object_surface_count")
+            else:
+                layout.prop(settings, "object_surface_density")
             if settings.object_surface_distribution == "POISSON":
                 layout.prop(settings, "object_surface_distance_min")
-            layout.prop(settings, "object_surface_seed")
+            if settings.object_surface_distribution != "UV_GRID":
+                layout.prop(settings, "object_surface_seed")
+        layout.prop(settings, "object_use_vertex_map")
+        if settings.object_use_vertex_map:
+            layout.prop(settings, "object_vertex_map")
+            layout.prop(settings, "object_vertex_map_threshold")
         row = layout.row(align=True)
         row.use_property_split = False
         row.label(text="Alignment")

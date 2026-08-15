@@ -621,6 +621,39 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     ]
     socket = _new_socket(
         interface,
+        properties.SOCKET_OBJECT_USE_VERTEX_MAP,
+        "INPUT",
+        "NodeSocketBool",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_USE_VERTEX_MAP
+    ]
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_VERTEX_MAP,
+        "INPUT",
+        "NodeSocketString",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_VERTEX_MAP
+    ]
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_VERTEX_MAP_THRESHOLD,
+        "INPUT",
+        "NodeSocketFloat",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_VERTEX_MAP_THRESHOLD
+    ]
+    socket.min_value = 0.0
+    socket.max_value = 1.0
+    socket.subtype = "FACTOR"
+    socket = _new_socket(
+        interface,
         properties.SOCKET_OBJECT_SURFACE_DISTRIBUTION,
         "INPUT",
         "NodeSocketInt",
@@ -630,7 +663,50 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         properties.SOCKET_OBJECT_SURFACE_DISTRIBUTION
     ]
     socket.min_value = 0
-    socket.max_value = 1
+    socket.max_value = 4
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_SURFACE_COUNT,
+        "INPUT",
+        "NodeSocketInt",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SURFACE_COUNT
+    ]
+    socket.min_value = 1
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_SURFACE_U_COUNT,
+        "INPUT",
+        "NodeSocketInt",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SURFACE_U_COUNT
+    ]
+    socket.min_value = 1
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_SURFACE_V_COUNT,
+        "INPUT",
+        "NodeSocketInt",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SURFACE_V_COUNT
+    ]
+    socket.min_value = 1
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_OBJECT_SURFACE_UV_MAP,
+        "INPUT",
+        "NodeSocketString",
+        parent=object_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_OBJECT_SURFACE_UV_MAP
+    ]
     socket = _new_socket(
         interface,
         properties.SOCKET_OBJECT_SURFACE_DENSITY,
@@ -946,7 +1022,14 @@ _OBJECT_DISTRIBUTION_INPUTS = (
     properties.SOCKET_OBJECT_SPLINE_STEP,
     properties.SOCKET_OBJECT_SPLINE_PER_SPLINE,
     properties.SOCKET_OBJECT_SPLINE_SMOOTH_ROTATION,
+    properties.SOCKET_OBJECT_USE_VERTEX_MAP,
+    properties.SOCKET_OBJECT_VERTEX_MAP,
+    properties.SOCKET_OBJECT_VERTEX_MAP_THRESHOLD,
     properties.SOCKET_OBJECT_SURFACE_DISTRIBUTION,
+    properties.SOCKET_OBJECT_SURFACE_COUNT,
+    properties.SOCKET_OBJECT_SURFACE_U_COUNT,
+    properties.SOCKET_OBJECT_SURFACE_V_COUNT,
+    properties.SOCKET_OBJECT_SURFACE_UV_MAP,
     properties.SOCKET_OBJECT_SURFACE_DENSITY,
     properties.SOCKET_OBJECT_SURFACE_DISTANCE_MIN,
     properties.SOCKET_OBJECT_SURFACE_SEED,
@@ -2142,6 +2225,10 @@ def _build_object_distribution(
         "FACE",
         "Surface Normal",
     )
+    vertex_map = _new_named_float_attribute_node(nodes, "", (x + 40, y + 520))
+    vertex_map_weight = _new_math_node(nodes, (x + 260, y + 520), "GREATER_THAN")
+    vertex_map_disabled = _new_boolean_math_node(nodes, (x + 260, y + 660), "NOT")
+    vertex_map_selection = _new_boolean_math_node(nodes, (x + 500, y + 600), "OR")
     mesh_vertices = _new_mesh_to_points_node(nodes, (x + 560, y + 260), "VERTICES")
     mesh_faces = _new_mesh_to_points_node(nodes, (x + 560, y + 40), "FACES")
     random_surface_points = _new_node(
@@ -2154,8 +2241,76 @@ def _build_object_distribution(
         "GeometryNodeDistributePointsOnFaces",
         (x + 520, y - 300),
     )
-    surface_points_switch = _new_geometry_index_switch_node(nodes, (x + 760, y - 180), 2)
-    surface_normal_switch = _new_vector_index_switch_node(nodes, (x + 760, y - 320), 2)
+    count_surface_points = _new_node(
+        nodes,
+        "GeometryNodeDistributePointsOnFaces",
+        (x + 520, y - 480),
+    )
+    even_surface_points = _new_node(
+        nodes,
+        "GeometryNodeDistributePointsOnFaces",
+        (x + 520, y - 660),
+    )
+    face_area = _new_node(nodes, "GeometryNodeInputMeshFaceArea", (x + 40, y - 160))
+    area_sum = _new_node(nodes, "GeometryNodeAttributeStatistic", (x + 260, y - 160))
+    safe_area = _new_math_node(nodes, (x + 500, y - 760), "MAXIMUM")
+    count_density = _new_math_node(nodes, (x + 720, y - 760), "DIVIDE")
+    area_per_count = _new_math_node(nodes, (x + 720, y - 900), "DIVIDE")
+    even_spacing = _new_math_node(nodes, (x + 940, y - 900), "SQRT")
+    scaled_even_spacing = _new_math_node(nodes, (x + 1160, y - 900), "MULTIPLY")
+    even_density_max = _new_math_node(nodes, (x + 940, y - 760), "MULTIPLY")
+    uv_total_count = _new_integer_math_node(nodes, (x + 40, y - 880), "MULTIPLY")
+    uv_line = _new_mesh_line_node(nodes, (x + 260, y - 1040))
+    uv_index = _new_node(nodes, "GeometryNodeInputIndex", (x + 260, y - 840))
+    uv_u_index = _new_integer_math_node(nodes, (x + 500, y - 1000), "MODULO")
+    uv_v_index = _new_integer_math_node(nodes, (x + 500, y - 1140), "DIVIDE_FLOOR")
+    uv_u_center = _new_math_node(nodes, (x + 720, y - 1000), "ADD")
+    uv_v_center = _new_math_node(nodes, (x + 720, y - 1140), "ADD")
+    uv_u = _new_math_node(nodes, (x + 940, y - 1000), "DIVIDE")
+    uv_v = _new_math_node(nodes, (x + 940, y - 1140), "DIVIDE")
+    uv_sample = _new_combine_xyz_node(nodes, (x + 1160, y - 1080))
+    uv_map = _new_named_vector_attribute_node(nodes, "UVMap", (x + 1160, y - 1240))
+    sample_uv_position = _new_sample_uv_surface_node(nodes, (x + 1380, y - 1040), "FLOAT_VECTOR")
+    sample_uv_normal = _new_sample_uv_surface_node(nodes, (x + 1380, y - 1240), "FLOAT_VECTOR")
+    sample_uv_vertex_map = _new_sample_uv_surface_node(nodes, (x + 1380, y - 1360), "FLOAT")
+    object_bounds = _new_node(nodes, "GeometryNodeBoundBox", (x + 1160, y - 1460))
+    bounds_min = _new_separate_xyz_node(nodes, (x + 1380, y - 1460))
+    bounds_max = _new_separate_xyz_node(nodes, (x + 1380, y - 1660))
+    generated_x_size = _new_math_node(nodes, (x + 1600, y - 1460), "SUBTRACT")
+    generated_y_size = _new_math_node(nodes, (x + 1600, y - 1600), "SUBTRACT")
+    generated_x_offset = _new_math_node(nodes, (x + 1820, y - 1460), "MULTIPLY")
+    generated_y_offset = _new_math_node(nodes, (x + 1820, y - 1600), "MULTIPLY")
+    generated_x = _new_math_node(nodes, (x + 2040, y - 1460), "ADD")
+    generated_y = _new_math_node(nodes, (x + 2040, y - 1600), "ADD")
+    generated_z_sum = _new_math_node(nodes, (x + 1600, y - 1740), "ADD")
+    generated_z = _new_math_node(nodes, (x + 1820, y - 1740), "MULTIPLY")
+    generated_sample = _new_combine_xyz_node(nodes, (x + 2260, y - 1600))
+    sample_nearest_position = _new_sample_nearest_surface_node(
+        nodes,
+        (x + 2480, y - 1500),
+        "FLOAT_VECTOR",
+    )
+    sample_nearest_normal = _new_sample_nearest_surface_node(
+        nodes,
+        (x + 2480, y - 1700),
+        "FLOAT_VECTOR",
+    )
+    sample_nearest_vertex_map = _new_sample_nearest_surface_node(
+        nodes,
+        (x + 2480, y - 1900),
+        "FLOAT",
+    )
+    uv_or_nearest_valid = _new_boolean_math_node(nodes, (x + 1600, y - 1320), "OR")
+    uv_vertex_map_weight = _new_float_switch_node(nodes, (x + 2700, y - 1560))
+    uv_vertex_map_selection_weight = _new_math_node(nodes, (x + 2920, y - 1560), "GREATER_THAN")
+    uv_vertex_map_selection = _new_boolean_math_node(nodes, (x + 3140, y - 1560), "OR")
+    uv_grid_selection = _new_boolean_math_node(nodes, (x + 3360, y - 1420), "AND")
+    uv_grid_position = _new_vector_switch_node(nodes, (x + 2700, y - 1120))
+    uv_grid_normal = _new_vector_switch_node(nodes, (x + 2700, y - 1320))
+    uv_set_position = _new_node(nodes, "GeometryNodeSetPosition", (x + 2920, y - 1040))
+    uv_points = _new_mesh_to_points_node(nodes, (x + 3140, y - 1040), "VERTICES")
+    surface_points_switch = _new_geometry_index_switch_node(nodes, (x + 760, y - 180), 5)
+    surface_normal_switch = _new_vector_index_switch_node(nodes, (x + 760, y - 320), 5)
     evaluated_points = _new_node(nodes, "GeometryNodeCurveToPoints", (x + 500, y - 280))
     count_points = _new_node(nodes, "GeometryNodeCurveToPoints", (x + 500, y - 420))
     step_points = _new_node(nodes, "GeometryNodeCurveToPoints", (x + 500, y - 560))
@@ -2226,10 +2381,24 @@ def _build_object_distribution(
     center_up_align_euler.inputs["Factor"].default_value = 1.0
     spline_align_euler.inputs["Factor"].default_value = 1.0
     smooth_spline_euler.inputs["Factor"].default_value = 1.0
+    vertex_map_weight.inputs[2].default_value = 0.001
+    uv_vertex_map_selection_weight.inputs[2].default_value = 0.001
     if hasattr(random_surface_points, "distribute_method"):
         random_surface_points.distribute_method = "RANDOM"
     if hasattr(poisson_surface_points, "distribute_method"):
         poisson_surface_points.distribute_method = "POISSON"
+    if hasattr(count_surface_points, "distribute_method"):
+        count_surface_points.distribute_method = "RANDOM"
+    if hasattr(even_surface_points, "distribute_method"):
+        even_surface_points.distribute_method = "POISSON"
+    area_sum.data_type = "FLOAT"
+    area_sum.domain = "FACE"
+    safe_area.inputs[1].default_value = 0.0001
+    scaled_even_spacing.inputs[1].default_value = 0.75
+    even_density_max.inputs[1].default_value = 4.0
+    uv_u_center.inputs[1].default_value = 0.5
+    uv_v_center.inputs[1].default_value = 0.5
+    generated_z.inputs[1].default_value = 0.5
 
     _link(links, group_input, properties.SOCKET_OBJECT_DISTRIBUTION_OBJECT, object_info, "Object")
     _link(links, object_info, "Geometry", capture_vertex_normal, "Geometry")
@@ -2238,10 +2407,129 @@ def _build_object_distribution(
     _link(links, normal, "Normal", capture_face_normal, "Surface Normal")
     _link(links, capture_vertex_normal, "Geometry", mesh_vertices, "Mesh")
     _link(links, capture_face_normal, "Geometry", mesh_faces, "Mesh")
+    _link(links, group_input, properties.SOCKET_OBJECT_VERTEX_MAP, vertex_map, "Name")
+    _link(links, vertex_map, "Attribute", vertex_map_weight, "Value")
+    _link(
+        links,
+        group_input,
+        properties.SOCKET_OBJECT_VERTEX_MAP_THRESHOLD,
+        vertex_map_weight,
+        "Value_001",
+    )
+    _link(links, group_input, properties.SOCKET_OBJECT_USE_VERTEX_MAP, vertex_map_disabled, "Boolean")
+    _link(links, vertex_map_disabled, "Boolean", vertex_map_selection, "Boolean")
+    _link(links, vertex_map_weight, "Value", vertex_map_selection, "Boolean_001")
+    _link(links, vertex_map_selection, "Boolean", mesh_vertices, "Selection")
+    _link(links, vertex_map_selection, "Boolean", mesh_faces, "Selection")
     _link(links, object_info, "Geometry", random_surface_points, "Mesh")
     _link(links, object_info, "Geometry", poisson_surface_points, "Mesh")
+    _link(links, object_info, "Geometry", count_surface_points, "Mesh")
+    _link(links, object_info, "Geometry", even_surface_points, "Mesh")
+    _link(links, vertex_map_selection, "Boolean", random_surface_points, "Selection")
+    _link(links, vertex_map_selection, "Boolean", poisson_surface_points, "Selection")
+    _link(links, vertex_map_selection, "Boolean", count_surface_points, "Selection")
+    _link(links, vertex_map_selection, "Boolean", even_surface_points, "Selection")
+    _link(links, object_info, "Geometry", area_sum, "Geometry")
+    _link(links, face_area, "Area", area_sum, "Attribute")
+    _link(links, area_sum, "Sum", safe_area, "Value")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_COUNT, count_density, "Value")
+    _link(links, safe_area, "Value", count_density, "Value_001")
+    _link(links, safe_area, "Value", area_per_count, "Value")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_COUNT, area_per_count, "Value_001")
+    _link(links, area_per_count, "Value", even_spacing, "Value")
+    _link(links, even_spacing, "Value", scaled_even_spacing, "Value")
+    _link(links, count_density, "Value", even_density_max, "Value")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_U_COUNT, uv_total_count, "Value")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_V_COUNT, uv_total_count, "Value_001")
+    _link(links, uv_total_count, "Value", uv_line, "Count")
+    _link(links, uv_index, "Index", uv_u_index, "Value")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_U_COUNT, uv_u_index, "Value_001")
+    _link(links, uv_index, "Index", uv_v_index, "Value")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_U_COUNT, uv_v_index, "Value_001")
+    _link(links, uv_u_index, "Value", uv_u_center, "Value")
+    _link(links, uv_v_index, "Value", uv_v_center, "Value")
+    _link(links, uv_u_center, "Value", uv_u, "Value")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_U_COUNT, uv_u, "Value_001")
+    _link(links, uv_v_center, "Value", uv_v, "Value")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_V_COUNT, uv_v, "Value_001")
+    _link(links, uv_u, "Value", uv_sample, "X")
+    _link(links, uv_v, "Value", uv_sample, "Y")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_UV_MAP, uv_map, "Name")
+    _link(links, object_info, "Geometry", sample_uv_position, "Mesh")
+    _link(links, position, "Position", sample_uv_position, "Value")
+    _link(links, uv_map, "Attribute", sample_uv_position, "UV Map")
+    _link(links, uv_sample, "Vector", sample_uv_position, "Sample UV")
+    _link(links, object_info, "Geometry", sample_uv_normal, "Mesh")
+    _link(links, normal, "Normal", sample_uv_normal, "Value")
+    _link(links, uv_map, "Attribute", sample_uv_normal, "UV Map")
+    _link(links, uv_sample, "Vector", sample_uv_normal, "Sample UV")
+    _link(links, object_info, "Geometry", sample_uv_vertex_map, "Mesh")
+    _link(links, vertex_map, "Attribute", sample_uv_vertex_map, "Value")
+    _link(links, uv_map, "Attribute", sample_uv_vertex_map, "UV Map")
+    _link(links, uv_sample, "Vector", sample_uv_vertex_map, "Sample UV")
+    _link(links, object_info, "Geometry", object_bounds, "Geometry")
+    _link(links, object_bounds, "Min", bounds_min, "Vector")
+    _link(links, object_bounds, "Max", bounds_max, "Vector")
+    _link(links, bounds_max, "X", generated_x_size, "Value")
+    _link(links, bounds_min, "X", generated_x_size, "Value_001")
+    _link(links, bounds_max, "Y", generated_y_size, "Value")
+    _link(links, bounds_min, "Y", generated_y_size, "Value_001")
+    _link(links, uv_u, "Value", generated_x_offset, "Value")
+    _link(links, generated_x_size, "Value", generated_x_offset, "Value_001")
+    _link(links, uv_v, "Value", generated_y_offset, "Value")
+    _link(links, generated_y_size, "Value", generated_y_offset, "Value_001")
+    _link(links, bounds_min, "X", generated_x, "Value")
+    _link(links, generated_x_offset, "Value", generated_x, "Value_001")
+    _link(links, bounds_min, "Y", generated_y, "Value")
+    _link(links, generated_y_offset, "Value", generated_y, "Value_001")
+    _link(links, bounds_min, "Z", generated_z_sum, "Value")
+    _link(links, bounds_max, "Z", generated_z_sum, "Value_001")
+    _link(links, generated_z_sum, "Value", generated_z, "Value")
+    _link(links, generated_x, "Value", generated_sample, "X")
+    _link(links, generated_y, "Value", generated_sample, "Y")
+    _link(links, generated_z, "Value", generated_sample, "Z")
+    _link(links, object_info, "Geometry", sample_nearest_position, "Mesh")
+    _link(links, position, "Position", sample_nearest_position, "Value")
+    _link(links, generated_sample, "Vector", sample_nearest_position, "Sample Position")
+    _link(links, object_info, "Geometry", sample_nearest_normal, "Mesh")
+    _link(links, normal, "Normal", sample_nearest_normal, "Value")
+    _link(links, generated_sample, "Vector", sample_nearest_normal, "Sample Position")
+    _link(links, object_info, "Geometry", sample_nearest_vertex_map, "Mesh")
+    _link(links, vertex_map, "Attribute", sample_nearest_vertex_map, "Value")
+    _link(links, generated_sample, "Vector", sample_nearest_vertex_map, "Sample Position")
+    _link(links, sample_uv_position, "Is Valid", uv_or_nearest_valid, "Boolean")
+    _link(links, sample_nearest_position, "Is Valid", uv_or_nearest_valid, "Boolean_001")
+    _link(links, sample_uv_position, "Is Valid", uv_vertex_map_weight, "Switch")
+    _link(links, sample_nearest_vertex_map, "Value", uv_vertex_map_weight, "False")
+    _link(links, sample_uv_vertex_map, "Value", uv_vertex_map_weight, "True")
+    _link(links, uv_vertex_map_weight, "Output", uv_vertex_map_selection_weight, "Value")
+    _link(
+        links,
+        group_input,
+        properties.SOCKET_OBJECT_VERTEX_MAP_THRESHOLD,
+        uv_vertex_map_selection_weight,
+        "Value_001",
+    )
+    _link(links, vertex_map_disabled, "Boolean", uv_vertex_map_selection, "Boolean")
+    _link(links, uv_vertex_map_selection_weight, "Value", uv_vertex_map_selection, "Boolean_001")
+    _link(links, uv_or_nearest_valid, "Boolean", uv_grid_selection, "Boolean")
+    _link(links, uv_vertex_map_selection, "Boolean", uv_grid_selection, "Boolean_001")
+    _link(links, sample_uv_position, "Is Valid", uv_grid_position, "Switch")
+    _link(links, sample_nearest_position, "Value", uv_grid_position, "False")
+    _link(links, sample_uv_position, "Value", uv_grid_position, "True")
+    _link(links, sample_uv_position, "Is Valid", uv_grid_normal, "Switch")
+    _link(links, sample_nearest_normal, "Value", uv_grid_normal, "False")
+    _link(links, sample_uv_normal, "Value", uv_grid_normal, "True")
+    _link(links, uv_line, "Mesh", uv_set_position, "Geometry")
+    _link(links, uv_grid_selection, "Boolean", uv_set_position, "Selection")
+    _link(links, uv_grid_position, "Output", uv_set_position, "Position")
+    _link(links, uv_set_position, "Geometry", uv_points, "Mesh")
+    _link(links, uv_grid_selection, "Boolean", uv_points, "Selection")
     _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_DENSITY, random_surface_points, "Density")
     _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_DENSITY, poisson_surface_points, "Density Max")
+    _link(links, count_density, "Value", count_surface_points, "Density")
+    _link(links, even_density_max, "Value", even_surface_points, "Density Max")
+    _link(links, scaled_even_spacing, "Value", even_surface_points, "Distance Min")
     _link(
         links,
         group_input,
@@ -2251,6 +2539,8 @@ def _build_object_distribution(
     )
     _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_SEED, random_surface_points, "Seed")
     _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_SEED, poisson_surface_points, "Seed")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_SEED, count_surface_points, "Seed")
+    _link(links, group_input, properties.SOCKET_OBJECT_SURFACE_SEED, even_surface_points, "Seed")
     _link(
         links,
         group_input,
@@ -2267,8 +2557,14 @@ def _build_object_distribution(
     )
     _link(links, random_surface_points, "Points", surface_points_switch, "0")
     _link(links, poisson_surface_points, "Points", surface_points_switch, "1")
+    _link(links, count_surface_points, "Points", surface_points_switch, "2")
+    _link(links, even_surface_points, "Points", surface_points_switch, "3")
+    _link(links, uv_points, "Points", surface_points_switch, "4")
     _link(links, random_surface_points, "Normal", surface_normal_switch, "0")
     _link(links, poisson_surface_points, "Normal", surface_normal_switch, "1")
+    _link(links, count_surface_points, "Normal", surface_normal_switch, "2")
+    _link(links, even_surface_points, "Normal", surface_normal_switch, "3")
+    _link(links, uv_grid_normal, "Output", surface_normal_switch, "4")
     _link(links, object_info, "Geometry", evaluated_points, "Curve")
     _link(links, object_info, "Geometry", count_points, "Curve")
     _link(links, object_info, "Geometry", step_points, "Curve")
@@ -3314,6 +3610,10 @@ def _new_combine_xyz_node(nodes, location: tuple[int, int]):
     return _new_node(nodes, "ShaderNodeCombineXYZ", location)
 
 
+def _new_separate_xyz_node(nodes, location: tuple[int, int]):
+    return _new_node(nodes, "ShaderNodeSeparateXYZ", location)
+
+
 def _new_vector_math_node(nodes, location: tuple[int, int], operation: str):
     node = _new_node(nodes, "ShaderNodeVectorMath", location)
     node.operation = operation
@@ -3322,6 +3622,12 @@ def _new_vector_math_node(nodes, location: tuple[int, int], operation: str):
 
 def _new_math_node(nodes, location: tuple[int, int], operation: str):
     node = _new_node(nodes, "ShaderNodeMath", location)
+    node.operation = operation
+    return node
+
+
+def _new_integer_math_node(nodes, location: tuple[int, int], operation: str):
+    node = _new_node(nodes, "FunctionNodeIntegerMath", location)
     node.operation = operation
     return node
 
@@ -3391,6 +3697,25 @@ def _new_named_float_attribute_node(nodes, name: str, location: tuple[int, int])
     node = _new_node(nodes, "GeometryNodeInputNamedAttribute", location)
     node.data_type = "FLOAT"
     node.inputs["Name"].default_value = name
+    return node
+
+
+def _new_named_vector_attribute_node(nodes, name: str, location: tuple[int, int]):
+    node = _new_node(nodes, "GeometryNodeInputNamedAttribute", location)
+    node.data_type = "FLOAT_VECTOR"
+    node.inputs["Name"].default_value = name
+    return node
+
+
+def _new_sample_uv_surface_node(nodes, location: tuple[int, int], data_type: str):
+    node = _new_node(nodes, "GeometryNodeSampleUVSurface", location)
+    node.data_type = data_type
+    return node
+
+
+def _new_sample_nearest_surface_node(nodes, location: tuple[int, int], data_type: str):
+    node = _new_node(nodes, "GeometryNodeSampleNearestSurface", location)
+    node.data_type = data_type
     return node
 
 
