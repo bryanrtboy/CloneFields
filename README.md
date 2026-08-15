@@ -46,9 +46,10 @@ between neighboring clones, so changing Count changes the total size.
 `Endpoint` is the total distance from the first clone to the last, so changing
 Count redistributes clones inside the same size.
 
-Grid and Radial distributions are centered on the Cloner origin. Selected
-Cloners display viewport guides. Grid handles edit axis spacing, and the Radial
-handle edits Radius.
+Grid, Brick, and Radial distributions are centered on the Cloner origin. Brick
+can orient its staggered pattern on the local `Z (XY)`, `X (ZY)`, or `Y (XZ)`
+plane. Selected Cloners display viewport guides. Grid handles edit axis
+spacing, and the Radial handle edits Radius.
 
 Radial 360-degree arcs divide the circle by Count, so the last clone does not
 overlap the first. `Align` makes the source transform follow each radial step.

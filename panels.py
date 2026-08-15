@@ -50,6 +50,7 @@ def _draw_grid(layout, settings) -> None:
 
 def _draw_brick(layout, settings) -> None:
     _draw_grid(layout, settings)
+    layout.prop(settings, "brick_orientation")
     layout.prop(settings, "brick_row_offset")
     layout.prop(settings, "brick_layer_offset")
 

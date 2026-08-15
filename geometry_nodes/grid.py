@@ -456,6 +456,18 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
         socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
         socket.min_value = -10.0
         socket.max_value = 10.0
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_BRICK_ORIENTATION,
+        "INPUT",
+        "NodeSocketInt",
+        parent=brick_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_BRICK_ORIENTATION
+    ]
+    socket.min_value = 0
+    socket.max_value = 2
 
     socket = _new_socket(
         interface,
@@ -992,6 +1004,7 @@ _BRICK_DISTRIBUTION_INPUTS = (
     properties.SOCKET_SPACING_Z,
     properties.SOCKET_BRICK_ROW_OFFSET,
     properties.SOCKET_BRICK_LAYER_OFFSET,
+    properties.SOCKET_BRICK_ORIENTATION,
     *_EFFECTOR_INPUTS,
 )
 _LINEAR_DISTRIBUTION_INPUTS = (
@@ -1706,12 +1719,20 @@ def _build_brick_distribution(
         (spacing_x_node, spacing_x_socket),
         (x + 1540, y + 520),
     )
-    step_index_node, step_index_socket = _build_grid_step_index(
+    oriented_points, oriented_points_socket = _build_brick_oriented_points(
         nodes,
         links,
         group_input,
         brick_points,
         brick_points_socket,
+        (x + 1540, y + 700),
+    )
+    step_index_node, step_index_socket = _build_grid_step_index(
+        nodes,
+        links,
+        group_input,
+        oriented_points,
+        oriented_points_socket,
         counts,
         (x + 1540, y + 300),
     )
@@ -1720,8 +1741,8 @@ def _build_brick_distribution(
             nodes,
             links,
             group_input,
-            brick_points,
-            brick_points_socket,
+            oriented_points,
+            oriented_points_socket,
             (x + 1800, y + 180),
             step_index_node,
             step_index_socket,
@@ -1794,6 +1815,42 @@ def _build_brick_offset_points(
     _link(links, total_offset, "Value", offset_vector, "X")
     _link(links, points_node, points_socket, set_position, "Geometry")
     _link(links, offset_vector, "Vector", set_position, "Offset")
+    return set_position, "Geometry"
+
+
+def _build_brick_oriented_points(
+    nodes,
+    links,
+    group_input,
+    points_node,
+    points_socket: str,
+    origin: tuple[int, int],
+):
+    x, y = origin
+    position = _new_node(nodes, "GeometryNodeInputPosition", (x, y))
+    separate = _new_separate_xyz_node(nodes, (x + 220, y))
+    default_xy = _new_combine_xyz_node(nodes, (x + 460, y + 160))
+    plane_zy = _new_combine_xyz_node(nodes, (x + 460, y))
+    plane_xz = _new_combine_xyz_node(nodes, (x + 460, y - 160))
+    switch = _new_vector_index_switch_node(nodes, (x + 700, y), 3)
+    set_position = _new_node(nodes, "GeometryNodeSetPosition", (x + 940, y - 80))
+
+    _link(links, position, "Position", separate, "Vector")
+    _link(links, separate, "X", default_xy, "X")
+    _link(links, separate, "Y", default_xy, "Y")
+    _link(links, separate, "Z", default_xy, "Z")
+    _link(links, separate, "Z", plane_zy, "X")
+    _link(links, separate, "Y", plane_zy, "Y")
+    _link(links, separate, "X", plane_zy, "Z")
+    _link(links, separate, "X", plane_xz, "X")
+    _link(links, separate, "Z", plane_xz, "Y")
+    _link(links, separate, "Y", plane_xz, "Z")
+    _link(links, group_input, properties.SOCKET_BRICK_ORIENTATION, switch, "Index")
+    _link(links, default_xy, "Vector", switch, "0")
+    _link(links, plane_zy, "Vector", switch, "1")
+    _link(links, plane_xz, "Vector", switch, "2")
+    _link(links, points_node, points_socket, set_position, "Geometry")
+    _link(links, switch, "Output", set_position, "Position")
     return set_position, "Geometry"
 
 

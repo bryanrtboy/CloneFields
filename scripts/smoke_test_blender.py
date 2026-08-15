@@ -158,6 +158,7 @@ def main() -> None:
     addon.register()
     inputs = importlib.import_module(f"{REPO_ROOT.name}.modifier_inputs")
     props = importlib.import_module(f"{REPO_ROOT.name}.properties")
+    obj_settings = importlib.import_module(f"{REPO_ROOT.name}.object_settings")
     cloner_module = importlib.import_module(f"{REPO_ROOT.name}.cloner")
     eff = importlib.import_module(f"{REPO_ROOT.name}.effectors")
     sources = importlib.import_module(f"{REPO_ROOT.name}.source_management")
@@ -296,6 +297,10 @@ def main() -> None:
             modifier,
             props.SOCKET_BRICK_LAYER_OFFSET,
         )
+        brick_orientation_id = inputs.get_modifier_input_identifier(
+            modifier,
+            props.SOCKET_BRICK_ORIENTATION,
+        )
         object_distribution_object_id = inputs.get_modifier_input_identifier(
             modifier,
             props.SOCKET_OBJECT_DISTRIBUTION_OBJECT,
@@ -393,6 +398,7 @@ def main() -> None:
         assert radial_axis_id is not None
         assert brick_row_offset_id is not None
         assert brick_layer_offset_id is not None
+        assert brick_orientation_id is not None
         assert object_distribution_object_id is not None
         assert object_distribution_mode_id is not None
         assert object_use_vertex_map_id is not None
@@ -506,6 +512,7 @@ def main() -> None:
         assert modifier[mode_id] == 4
         assert abs(modifier[brick_row_offset_id] - 0.5) < 0.0001
         assert abs(modifier[brick_layer_offset_id]) < 0.0001
+        assert modifier[brick_orientation_id] == 0
         assert _evaluated_vertex_count(cloner) == len(source.data.vertices) * 6
         brick_vertices = _evaluated_vertices(cloner)
         lower_y = min(vertex[1] for vertex in brick_vertices)
@@ -519,12 +526,46 @@ def main() -> None:
         lower_center_x = (min(lower_row_x) + max(lower_row_x)) / 2.0
         upper_center_x = (min(upper_row_x) + max(upper_row_x)) / 2.0
         assert abs((upper_center_x - lower_center_x) - 1.0) < 0.0001
+
+        cloner.clone_fields_cloner.count_x = 2
+        cloner.clone_fields_cloner.count_y = 1
+        cloner.clone_fields_cloner.count_z = 1
+        cloner.clone_fields_cloner.spacing_x = 8.0
+        cloner.clone_fields_cloner.spacing_y = 2.0
+        cloner.clone_fields_cloner.spacing_z = 2.0
+        cloner.clone_fields_cloner.brick_row_offset = 0.0
+        cloner.clone_fields_cloner.brick_layer_offset = 0.0
+        cloner.clone_fields_cloner.brick_orientation = "Z"
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        brick_xy_bounds = _evaluated_bounds_size(cloner)
+        assert brick_xy_bounds[0] > brick_xy_bounds[2] * 2.0
+        cloner.clone_fields_cloner.brick_orientation = "X"
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[brick_orientation_id] == 1
+        brick_zy_bounds = _evaluated_bounds_size(cloner)
+        assert brick_zy_bounds[2] > brick_zy_bounds[0] * 2.0
+        cloner.clone_fields_cloner.count_x = 1
+        cloner.clone_fields_cloner.count_y = 2
+        cloner.clone_fields_cloner.spacing_y = 8.0
+        cloner.clone_fields_cloner.brick_orientation = "Y"
+        cloner.update_tag()
+        modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert modifier[brick_orientation_id] == 2
+        brick_xz_bounds = _evaluated_bounds_size(cloner)
+        assert brick_xz_bounds[2] > brick_xz_bounds[1] * 2.0
+
         cloner.clone_fields_cloner.count_x = 4
         cloner.clone_fields_cloner.count_y = 1
         cloner.clone_fields_cloner.count_z = 1
         cloner.clone_fields_cloner.spacing_x = 6.0
         cloner.clone_fields_cloner.spacing_y = 2.0
         cloner.clone_fields_cloner.spacing_z = 2.5
+        cloner.clone_fields_cloner.brick_orientation = "Z"
 
         distribution_mesh = bpy.data.meshes.new("Distribution Mesh")
         distribution_mesh.from_pydata(
@@ -551,6 +592,11 @@ def main() -> None:
         vertex_group.add([0, 1], 1.0, "ADD")
         cloner.clone_fields_cloner.distribution_mode = "OBJECT"
         cloner.clone_fields_cloner.object_distribution_object = distribution_object
+        vertex_group_names = {
+            item[0]
+            for item in obj_settings.vertex_group_items(cloner.clone_fields_cloner, None)
+        }
+        assert "CloneMask" in vertex_group_names
         cloner.clone_fields_cloner.object_distribution_mode = "VERTICES"
         cloner.update_tag()
         modifier.node_group.update_tag()

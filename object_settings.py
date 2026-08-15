@@ -27,6 +27,16 @@ DISTRIBUTION_MODE_VALUES = {
     "OBJECT": 3,
     "BRICK": 4,
 }
+BRICK_ORIENTATION_ITEMS = (
+    ("Z", "Z (XY)", "Lay the brick pattern on the local XY plane"),
+    ("X", "X (ZY)", "Lay the brick pattern on the local ZY plane"),
+    ("Y", "Y (XZ)", "Lay the brick pattern on the local XZ plane"),
+)
+BRICK_ORIENTATION_VALUES = {
+    "Z": 0,
+    "X": 1,
+    "Y": 2,
+}
 OBJECT_DISTRIBUTION_MODE_ITEMS = (
     ("VERTICES", "Vertices", "Place clones on mesh vertices"),
     ("POLYGONS", "Polygon Centers", "Place clones on mesh polygon centers"),
@@ -89,6 +99,38 @@ SURFACE_DISTRIBUTION_VALUES = {
     "EVEN": 3,
     "UV_GRID": 4,
 }
+
+
+def vertex_group_items(self, context):
+    global _VERTEX_GROUP_ITEMS_CACHE
+    obj = self.object_distribution_object
+    if obj is None or not getattr(obj, "vertex_groups", None):
+        _VERTEX_GROUP_ITEMS_CACHE = (("__NONE__", "None", "No vertex groups available"),)
+        return _VERTEX_GROUP_ITEMS_CACHE
+    items = [
+        (group.name, group.name, f"Use the {group.name} vertex group")
+        for group in obj.vertex_groups
+    ]
+    _VERTEX_GROUP_ITEMS_CACHE = (
+        tuple(items) if items else (("__NONE__", "None", "No vertex groups available"),)
+    )
+    return _VERTEX_GROUP_ITEMS_CACHE
+
+
+def _active_vertex_group_name(self) -> str:
+    return "" if self.object_vertex_map == "__NONE__" else self.object_vertex_map
+
+
+def _ensure_valid_object_vertex_group(self) -> None:
+    obj = self.object_distribution_object
+    groups = getattr(obj, "vertex_groups", None) if obj is not None else None
+    names = {group.name for group in groups} if groups else set()
+    if names and self.object_vertex_map not in names:
+        self.object_vertex_map = groups[0].name
+    elif not names and self.object_vertex_map != "__NONE__":
+        self.object_vertex_map = "__NONE__"
+
+
 RADIAL_AXIS_ITEMS = (
     ("Z", "Z", "Rotate around Z"),
     ("X", "X", "Rotate around X"),
@@ -113,6 +155,7 @@ SHADER_FIT_MODE_ITEMS = (
 )
 _CONVERTING_SPACING_MODE = False
 _SYNCING_SHADER_ASPECT = False
+_VERTEX_GROUP_ITEMS_CACHE = (("__NONE__", "None", "No vertex groups available"),)
 
 
 def is_curve_distribution_object(obj: bpy.types.Object | None) -> bool:
@@ -388,6 +431,14 @@ def _sync_brick_layer_offset(self, context) -> None:
     )
 
 
+def _sync_brick_orientation(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_BRICK_ORIENTATION,
+        BRICK_ORIENTATION_VALUES[self.brick_orientation],
+    )
+
+
 def _sync_linear_count(self, context) -> None:
     _sync_modifier_value(self, properties.SOCKET_LINEAR_COUNT, self.linear_count)
 
@@ -486,6 +537,7 @@ def _sync_object_distribution_object(self, context) -> None:
         properties.SOCKET_OBJECT_DISTRIBUTION_OBJECT,
         distribution_object,
     )
+    _ensure_valid_object_vertex_group(self)
     if is_curve_distribution_object(distribution_object):
         self.object_distribution_mode = "SPLINE"
 
@@ -555,7 +607,7 @@ def _sync_object_vertex_map(self, context) -> None:
     _sync_modifier_value(
         self,
         properties.SOCKET_OBJECT_VERTEX_MAP,
-        self.object_vertex_map,
+        _active_vertex_group_name(self),
     )
 
 
@@ -1623,6 +1675,12 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         max=10.0,
         update=_sync_brick_layer_offset,
     )
+    brick_orientation: EnumProperty(
+        name="Orientation",
+        items=BRICK_ORIENTATION_ITEMS,
+        default="Z",
+        update=_sync_brick_orientation,
+    )
     linear_count: IntProperty(
         name="Count",
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_LINEAR_COUNT],
@@ -1733,15 +1791,16 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         update=_sync_object_spline_smooth_rotation,
     )
     object_use_vertex_map: BoolProperty(
-        name="Use Vertex Map",
-        description="Limit mesh Object distribution to a named vertex group",
+        name="Use Vertex Group",
+        description="Limit mesh Object distribution to a vertex group on the distribution object",
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_USE_VERTEX_MAP],
         update=_sync_object_use_vertex_map,
     )
-    object_vertex_map: StringProperty(
-        name="Vertex Map",
-        description="Vertex group name used to filter Object distribution",
-        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_OBJECT_VERTEX_MAP],
+    object_vertex_map: EnumProperty(
+        name="Vertex Group",
+        description="Vertex group used to filter Object distribution",
+        items=vertex_group_items,
+        default=0,
         update=_sync_object_vertex_map,
     )
     object_vertex_map_threshold: FloatProperty(
