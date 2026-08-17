@@ -1273,8 +1273,29 @@ def main() -> None:
             random_modifier,
             props.SOCKET_EFFECTOR_FIELD,
         )
+        random_scale_uniform_id = _modifier_input_id(
+            inputs,
+            random_modifier,
+            props.SOCKET_EFFECTOR_SCALE_UNIFORM,
+        )
+        random_scale_absolute_id = _modifier_input_id(
+            inputs,
+            random_modifier,
+            props.SOCKET_EFFECTOR_SCALE_ABSOLUTE,
+        )
+        random_scale_x_id = _modifier_input_id(
+            inputs,
+            random_modifier,
+            props.SOCKET_EFFECTOR_SCALE_X,
+        )
         assert random_modifier[random_type_id] == 1
         assert random_modifier[random_field_id] == eff.field_shape_value(eff.FIELD_SHAPE_NONE)
+        assert random_scale_uniform_id is not None
+        assert random_scale_absolute_id is not None
+        assert random_scale_x_id is not None
+        assert abs(random_effector_settings.scale_x) < 0.0001
+        assert abs(random_effector_settings.scale_y) < 0.0001
+        assert abs(random_effector_settings.scale_z) < 0.0001
         random_effector_settings.radius = 10.0
         random_effector_settings.position_x = 1.0
         random_effector_settings.position_y = 0.0
@@ -1293,6 +1314,52 @@ def main() -> None:
             abs(before[0] - after[0]) > 0.001
             for before, after in zip(seed_7_vertices, seed_19_vertices)
         )
+        random_cloner.clone_fields_cloner.count_x = 1
+        random_effector_settings.use_position = False
+        random_effector_settings.use_scale = True
+        random_effector_settings.scale_absolute = False
+        random_effector_settings.scale_uniform = False
+        random_effector_settings.scale_x = 0.0
+        random_effector_settings.scale_y = 0.0
+        random_effector_settings.scale_z = 0.0
+        random_cloner.update_tag()
+        random_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        neutral_scale_bounds = _evaluated_bounds_size(random_cloner)
+        assert max(abs(size - 2.0) for size in neutral_scale_bounds) < 0.001
+
+        random_effector_settings.scale_absolute = True
+        random_effector_settings.scale_x = 1.0
+        random_cloner.update_tag()
+        random_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert random_modifier[random_scale_absolute_id]
+        assert abs(random_modifier[random_scale_x_id] - 1.0) < 0.0001
+        absolute_positive_bounds = _evaluated_bounds_size(random_cloner)
+        assert absolute_positive_bounds[0] >= 2.0
+        assert absolute_positive_bounds[0] <= 4.0
+        assert abs(absolute_positive_bounds[1] - 2.0) < 0.001
+        assert abs(absolute_positive_bounds[2] - 2.0) < 0.001
+
+        random_effector_settings.scale_x = -1.0
+        random_cloner.update_tag()
+        random_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert abs(random_modifier[random_scale_x_id] + 1.0) < 0.0001
+        absolute_negative_bounds = _evaluated_bounds_size(random_cloner)
+        assert absolute_negative_bounds[0] > 0.0
+        assert absolute_negative_bounds[0] <= 2.0
+
+        random_effector_settings.scale_x = 1.0
+        random_effector_settings.scale_uniform = True
+        random_cloner.update_tag()
+        random_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert random_modifier[random_scale_uniform_id]
+        uniform_bounds = _evaluated_bounds_size(random_cloner)
+        assert max(uniform_bounds) - min(uniform_bounds) < 0.001
+        assert min(uniform_bounds) >= 2.0
+        assert max(uniform_bounds) <= 4.0
 
         bpy.ops.mesh.primitive_cube_add(location=(26.0, 0.0, 0.0))
         step_source = bpy.context.object

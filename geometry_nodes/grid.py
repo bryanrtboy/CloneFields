@@ -369,6 +369,26 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
     socket.default_value = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_EFFECTOR_USE_SCALE
     ]
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_EFFECTOR_SCALE_UNIFORM,
+        "INPUT",
+        "NodeSocketBool",
+        parent=effector_scale_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_SCALE_UNIFORM
+    ]
+    socket = _new_socket(
+        interface,
+        properties.SOCKET_EFFECTOR_SCALE_ABSOLUTE,
+        "INPUT",
+        "NodeSocketBool",
+        parent=effector_scale_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_SCALE_ABSOLUTE
+    ]
 
     for name in (
         properties.SOCKET_EFFECTOR_SCALE_X,
@@ -383,7 +403,6 @@ def _create_interface(node_group: bpy.types.GeometryNodeTree) -> None:
             parent=effector_scale_panel,
         )
         socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
-        socket.min_value = 0.0
 
     for slot_index, socket_set in enumerate(properties.EFFECTOR_SOCKET_SETS[1:], start=2):
         _create_effector_interface(interface, socket_set, slot_index)
@@ -1412,10 +1431,25 @@ def _create_effector_interface(interface, socket_set: dict, slot_index: int) -> 
         parent=scale_panel,
     )
     socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["use_scale"]]
+    socket = _new_socket(
+        interface,
+        socket_set["scale_uniform"],
+        "INPUT",
+        "NodeSocketBool",
+        parent=scale_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["scale_uniform"]]
+    socket = _new_socket(
+        interface,
+        socket_set["scale_absolute"],
+        "INPUT",
+        "NodeSocketBool",
+        parent=scale_panel,
+    )
+    socket.default_value = properties.GRID_INPUT_DEFAULTS[socket_set["scale_absolute"]]
     for name in (socket_set["scale_x"], socket_set["scale_y"], socket_set["scale_z"]):
         socket = _new_socket(interface, name, "INPUT", "NodeSocketFloat", parent=scale_panel)
         socket.default_value = properties.GRID_INPUT_DEFAULTS[name]
-        socket.min_value = 0.0
 
 
 def _build_grid_distribution(
@@ -3000,17 +3034,30 @@ def _build_plain_effector_points(
     weighted_offset = _new_vector_math_node(nodes, (x + 2420, y + 160), "SCALE")
     set_position = _new_node(nodes, "GeometryNodeSetPosition", (x + 2680, y + 120))
 
-    desired_scale = _new_combine_xyz_node(nodes, (x + 980, y + 380))
-    negative_scale_variation = _new_vector_math_node(nodes, (x + 1220, y + 300), "SUBTRACT")
-    positive_scale_variation = _new_vector_math_node(nodes, (x + 1220, y + 420), "ADD")
-    min_scale_floor = _new_combine_xyz_node(nodes, (x + 1220, y + 560))
-    clamped_negative_scale = _new_vector_math_node(nodes, (x + 1460, y + 300), "MAXIMUM")
-    random_scale = _new_random_vector_node(nodes, (x + 1460, y + 380))
-    effector_scale = _new_vector_switch_node(nodes, (x + 1940, y + 420))
+    scale_amount_xyz = _new_combine_xyz_node(nodes, (x + 980, y + 380))
+    uniform_scale_amount = _new_combine_xyz_node(nodes, (x + 980, y + 520))
+    scale_amount = _new_vector_switch_node(nodes, (x + 1220, y + 380))
     one_scale = _new_combine_xyz_node(nodes, (x + 980, y + 520))
-    scale_delta = _new_vector_math_node(nodes, (x + 1220, y + 420), "SUBTRACT")
+    relative_scale_amount = _new_vector_math_node(nodes, (x + 1460, y + 260), "ABSOLUTE")
+    relative_scale_min = _new_vector_math_node(nodes, (x + 1700, y + 260), "SUBTRACT")
+    relative_scale_max = _new_vector_math_node(nodes, (x + 1700, y + 380), "ADD")
+    scale_target = _new_vector_math_node(nodes, (x + 1460, y + 500), "ADD")
+    absolute_scale_min = _new_vector_math_node(nodes, (x + 1700, y + 500), "MINIMUM")
+    absolute_scale_max = _new_vector_math_node(nodes, (x + 1700, y + 620), "MAXIMUM")
+    random_scale_min = _new_vector_switch_node(nodes, (x + 1940, y + 300))
+    random_scale_max = _new_vector_switch_node(nodes, (x + 1940, y + 500))
+    random_scale = _new_random_vector_node(nodes, (x + 2180, y + 380))
+    separate_random_scale_min = _new_node(nodes, "ShaderNodeSeparateXYZ", (x + 2180, y + 180))
+    separate_random_scale_max = _new_node(nodes, "ShaderNodeSeparateXYZ", (x + 2180, y + 620))
+    random_uniform_scale_value = _new_node(nodes, "FunctionNodeRandomValue", (x + 2420, y + 620))
+    random_uniform_scale = _new_combine_xyz_node(nodes, (x + 2660, y + 620))
+    random_scale_output = _new_vector_switch_node(nodes, (x + 2420, y + 420))
+    effector_scale = _new_vector_switch_node(nodes, (x + 2660, y + 420))
+    scale_delta = _new_vector_math_node(nodes, (x + 2900, y + 420), "SUBTRACT")
     weighted_scale_delta = _new_vector_math_node(nodes, (x + 2420, y + 420), "SCALE")
-    final_scale = _new_vector_math_node(nodes, (x + 2660, y + 420), "ADD")
+    final_scale = _new_vector_math_node(nodes, (x + 3140, y + 420), "ADD")
+    minimum_final_scale = _new_combine_xyz_node(nodes, (x + 3140, y + 260))
+    safe_final_scale = _new_vector_math_node(nodes, (x + 3380, y + 420), "MAXIMUM")
 
     desired_rotation = _new_combine_xyz_node(nodes, (x + 980, y + 700))
     negative_rotation = _new_vector_math_node(nodes, (x + 1220, y + 700), "SCALE")
@@ -3078,9 +3125,9 @@ def _build_plain_effector_points(
     one_scale.inputs["X"].default_value = 1.0
     one_scale.inputs["Y"].default_value = 1.0
     one_scale.inputs["Z"].default_value = 1.0
-    min_scale_floor.inputs["X"].default_value = 0.001
-    min_scale_floor.inputs["Y"].default_value = 0.001
-    min_scale_floor.inputs["Z"].default_value = 0.001
+    minimum_final_scale.inputs["X"].default_value = 0.001
+    minimum_final_scale.inputs["Y"].default_value = 0.001
+    minimum_final_scale.inputs["Z"].default_value = 0.001
     _link(links, group_input, socket_set["object"], object_info, "Object")
     _link(links, group_input, socket_set["target_object"], target_info, "Object")
     _link(
@@ -3261,28 +3308,59 @@ def _build_plain_effector_points(
     _link(links, points_node, points_socket, set_position, "Geometry")
     _link(links, weighted_offset, "Vector", set_position, "Offset")
 
-    _link(links, group_input, socket_set["scale_x"], desired_scale, "X")
-    _link(links, group_input, socket_set["scale_y"], desired_scale, "Y")
-    _link(links, group_input, socket_set["scale_z"], desired_scale, "Z")
-    _link(links, one_scale, "Vector", negative_scale_variation, "Vector")
-    links.new(desired_scale.outputs["Vector"], negative_scale_variation.inputs[1])
-    _link(links, one_scale, "Vector", positive_scale_variation, "Vector")
-    links.new(desired_scale.outputs["Vector"], positive_scale_variation.inputs[1])
-    _link(links, negative_scale_variation, "Vector", clamped_negative_scale, "Vector")
-    links.new(min_scale_floor.outputs["Vector"], clamped_negative_scale.inputs[1])
-    _link(links, clamped_negative_scale, "Vector", random_scale, "Min")
-    _link(links, positive_scale_variation, "Vector", random_scale, "Max")
+    _link(links, group_input, socket_set["scale_x"], scale_amount_xyz, "X")
+    _link(links, group_input, socket_set["scale_y"], scale_amount_xyz, "Y")
+    _link(links, group_input, socket_set["scale_z"], scale_amount_xyz, "Z")
+    _link(links, group_input, socket_set["scale_x"], uniform_scale_amount, "X")
+    _link(links, group_input, socket_set["scale_x"], uniform_scale_amount, "Y")
+    _link(links, group_input, socket_set["scale_x"], uniform_scale_amount, "Z")
+    _link(links, group_input, socket_set["scale_uniform"], scale_amount, "Switch")
+    _link(links, scale_amount_xyz, "Vector", scale_amount, "False")
+    _link(links, uniform_scale_amount, "Vector", scale_amount, "True")
+    _link(links, scale_amount, "Output", relative_scale_amount, "Vector")
+    _link(links, one_scale, "Vector", relative_scale_min, "Vector")
+    links.new(relative_scale_amount.outputs["Vector"], relative_scale_min.inputs[1])
+    _link(links, one_scale, "Vector", relative_scale_max, "Vector")
+    links.new(relative_scale_amount.outputs["Vector"], relative_scale_max.inputs[1])
+    _link(links, one_scale, "Vector", scale_target, "Vector")
+    links.new(scale_amount.outputs["Output"], scale_target.inputs[1])
+    _link(links, one_scale, "Vector", absolute_scale_min, "Vector")
+    links.new(scale_target.outputs["Vector"], absolute_scale_min.inputs[1])
+    _link(links, one_scale, "Vector", absolute_scale_max, "Vector")
+    links.new(scale_target.outputs["Vector"], absolute_scale_max.inputs[1])
+    _link(links, group_input, socket_set["scale_absolute"], random_scale_min, "Switch")
+    _link(links, relative_scale_min, "Vector", random_scale_min, "False")
+    _link(links, absolute_scale_min, "Vector", random_scale_min, "True")
+    _link(links, group_input, socket_set["scale_absolute"], random_scale_max, "Switch")
+    _link(links, relative_scale_max, "Vector", random_scale_max, "False")
+    _link(links, absolute_scale_max, "Vector", random_scale_max, "True")
+    _link(links, random_scale_min, "Output", random_scale, "Min")
+    _link(links, random_scale_max, "Output", random_scale, "Max")
     _link(links, index, "Index", random_scale, "ID")
     _link(links, group_input, socket_set["seed"], random_scale, "Seed")
+    _link(links, random_scale_min, "Output", separate_random_scale_min, "Vector")
+    _link(links, random_scale_max, "Output", separate_random_scale_max, "Vector")
+    _link(links, separate_random_scale_min, "X", random_uniform_scale_value, "Min")
+    _link(links, separate_random_scale_max, "X", random_uniform_scale_value, "Max")
+    _link(links, index, "Index", random_uniform_scale_value, "ID")
+    _link(links, group_input, socket_set["seed"], random_uniform_scale_value, "Seed")
+    _link(links, random_uniform_scale_value, "Value", random_uniform_scale, "X")
+    _link(links, random_uniform_scale_value, "Value", random_uniform_scale, "Y")
+    _link(links, random_uniform_scale_value, "Value", random_uniform_scale, "Z")
+    _link(links, group_input, socket_set["scale_uniform"], random_scale_output, "Switch")
+    links.new(random_scale.outputs[0], random_scale_output.inputs["False"])
+    _link(links, random_uniform_scale, "Vector", random_scale_output, "True")
     _link(links, is_random, "Value", effector_scale, "Switch")
-    _link(links, desired_scale, "Vector", effector_scale, "False")
-    links.new(random_scale.outputs[0], effector_scale.inputs["True"])
+    _link(links, scale_target, "Vector", effector_scale, "False")
+    _link(links, random_scale_output, "Output", effector_scale, "True")
     _link(links, effector_scale, "Output", scale_delta, "Vector")
     links.new(one_scale.outputs["Vector"], scale_delta.inputs[1])
     _link(links, scale_delta, "Vector", weighted_scale_delta, "Vector")
     _link(links, scale_weight, "Output", weighted_scale_delta, "Scale")
     _link(links, one_scale, "Vector", final_scale, "Vector")
     links.new(weighted_scale_delta.outputs["Vector"], final_scale.inputs[1])
+    _link(links, final_scale, "Vector", safe_final_scale, "Vector")
+    links.new(minimum_final_scale.outputs["Vector"], safe_final_scale.inputs[1])
 
     _link(links, group_input, socket_set["rotation_x"], desired_rotation, "X")
     _link(links, group_input, socket_set["rotation_y"], desired_rotation, "Y")
@@ -3304,7 +3382,7 @@ def _build_plain_effector_points(
     _link(links, basic_rotation, "Rotation", rotation_type_switch, "False")
     _link(links, target_rotation, "Output", rotation_type_switch, "True")
 
-    return set_position, "Geometry", rotation_type_switch, "Output", final_scale, "Vector"
+    return set_position, "Geometry", rotation_type_switch, "Output", safe_final_scale, "Vector"
 
 
 def _build_target_rotation_nodes(

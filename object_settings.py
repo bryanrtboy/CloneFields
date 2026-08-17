@@ -292,6 +292,22 @@ def _sync_effector_use_scale(self, context) -> None:
     )
 
 
+def _sync_effector_scale_uniform(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_EFFECTOR_SCALE_UNIFORM,
+        self.effector_scale_uniform,
+    )
+
+
+def _sync_effector_scale_absolute(self, context) -> None:
+    _sync_modifier_value(
+        self,
+        properties.SOCKET_EFFECTOR_SCALE_ABSOLUTE,
+        self.effector_scale_absolute,
+    )
+
+
 def _sync_effector_scale_x(self, context) -> None:
     _sync_modifier_value(self, properties.SOCKET_EFFECTOR_SCALE_X, self.effector_scale_x)
 
@@ -1137,22 +1153,29 @@ class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_USE_SCALE],
         update=_sync_effector_settings,
     )
+    scale_uniform: BoolProperty(
+        name="Uniform Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_UNIFORM],
+        update=_sync_effector_settings,
+    )
+    scale_absolute: BoolProperty(
+        name="Absolute Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_ABSOLUTE],
+        update=_sync_effector_settings,
+    )
     scale_x: FloatProperty(
         name=properties.SOCKET_EFFECTOR_SCALE_X,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_X],
-        min=0.0,
         update=_sync_effector_settings,
     )
     scale_y: FloatProperty(
         name=properties.SOCKET_EFFECTOR_SCALE_Y,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_Y],
-        min=0.0,
         update=_sync_effector_settings,
     )
     scale_z: FloatProperty(
         name=properties.SOCKET_EFFECTOR_SCALE_Z,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_Z],
-        min=0.0,
         update=_sync_effector_settings,
     )
 
@@ -1293,22 +1316,29 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_USE_SCALE],
         update=_sync_effector_use_scale,
     )
+    effector_scale_uniform: BoolProperty(
+        name="Uniform Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_UNIFORM],
+        update=_sync_effector_scale_uniform,
+    )
+    effector_scale_absolute: BoolProperty(
+        name="Absolute Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_ABSOLUTE],
+        update=_sync_effector_scale_absolute,
+    )
     effector_scale_x: FloatProperty(
         name=properties.SOCKET_EFFECTOR_SCALE_X,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_X],
-        min=0.0,
         update=_sync_effector_scale_x,
     )
     effector_scale_y: FloatProperty(
         name=properties.SOCKET_EFFECTOR_SCALE_Y,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_Y],
-        min=0.0,
         update=_sync_effector_scale_y,
     )
     effector_scale_z: FloatProperty(
         name=properties.SOCKET_EFFECTOR_SCALE_Z,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_SCALE_Z],
-        min=0.0,
         update=_sync_effector_scale_z,
     )
     effector2_shape: EnumProperty(
@@ -1440,22 +1470,29 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_USE_SCALE],
         update=lambda self, context: _sync_effector_slot_value(self, 1, "use_scale", "effector2_use_scale"),
     )
+    effector2_scale_uniform: BoolProperty(
+        name="Uniform Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_SCALE_UNIFORM],
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "scale_uniform", "effector2_scale_uniform"),
+    )
+    effector2_scale_absolute: BoolProperty(
+        name="Absolute Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_SCALE_ABSOLUTE],
+        update=lambda self, context: _sync_effector_slot_value(self, 1, "scale_absolute", "effector2_scale_absolute"),
+    )
     effector2_scale_x: FloatProperty(
         name=properties.SOCKET_EFFECTOR_2_SCALE_X,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_SCALE_X],
-        min=0.0,
         update=lambda self, context: _sync_effector_slot_value(self, 1, "scale_x", "effector2_scale_x"),
     )
     effector2_scale_y: FloatProperty(
         name=properties.SOCKET_EFFECTOR_2_SCALE_Y,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_SCALE_Y],
-        min=0.0,
         update=lambda self, context: _sync_effector_slot_value(self, 1, "scale_y", "effector2_scale_y"),
     )
     effector2_scale_z: FloatProperty(
         name=properties.SOCKET_EFFECTOR_2_SCALE_Z,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_2_SCALE_Z],
-        min=0.0,
         update=lambda self, context: _sync_effector_slot_value(self, 1, "scale_z", "effector2_scale_z"),
     )
     effector3_shape: EnumProperty(
@@ -1587,22 +1624,29 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_USE_SCALE],
         update=lambda self, context: _sync_effector_slot_value(self, 2, "use_scale", "effector3_use_scale"),
     )
+    effector3_scale_uniform: BoolProperty(
+        name="Uniform Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_SCALE_UNIFORM],
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "scale_uniform", "effector3_scale_uniform"),
+    )
+    effector3_scale_absolute: BoolProperty(
+        name="Absolute Scale",
+        default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_SCALE_ABSOLUTE],
+        update=lambda self, context: _sync_effector_slot_value(self, 2, "scale_absolute", "effector3_scale_absolute"),
+    )
     effector3_scale_x: FloatProperty(
         name=properties.SOCKET_EFFECTOR_3_SCALE_X,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_SCALE_X],
-        min=0.0,
         update=lambda self, context: _sync_effector_slot_value(self, 2, "scale_x", "effector3_scale_x"),
     )
     effector3_scale_y: FloatProperty(
         name=properties.SOCKET_EFFECTOR_3_SCALE_Y,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_SCALE_Y],
-        min=0.0,
         update=lambda self, context: _sync_effector_slot_value(self, 2, "scale_y", "effector3_scale_y"),
     )
     effector3_scale_z: FloatProperty(
         name=properties.SOCKET_EFFECTOR_3_SCALE_Z,
         default=properties.GRID_INPUT_DEFAULTS[properties.SOCKET_EFFECTOR_3_SCALE_Z],
-        min=0.0,
         update=lambda self, context: _sync_effector_slot_value(self, 2, "scale_z", "effector3_scale_z"),
     )
     distribution_mode: EnumProperty(

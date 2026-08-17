@@ -290,7 +290,16 @@ def _draw_effector_settings(box, settings, slot, effector_settings) -> None:
         box.prop(effector_settings, "use_scale")
     if effector_settings.type != effectors.EFFECTOR_TYPE_TARGET and effector_settings.use_scale:
         label = "Scale Variation" if effector_settings.type == effectors.EFFECTOR_TYPE_RANDOM else ""
-        _draw_xyz_row(box, effector_settings, label, "scale_x", "scale_y", "scale_z")
+        scale_box = box.column(align=True)
+        scale_box.prop(effector_settings, "scale_uniform")
+        scale_box.prop(effector_settings, "scale_absolute")
+        if effector_settings.scale_uniform:
+            row = scale_box.row(align=True)
+            if label:
+                row.label(text=label)
+            row.prop(effector_settings, "scale_x", text="Amount")
+        else:
+            _draw_xyz_row(scale_box, effector_settings, label, "scale_x", "scale_y", "scale_z")
 
     box.separator()
     box.prop(settings, slot["strength"], text="Cloner Influence")

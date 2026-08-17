@@ -137,6 +137,12 @@ def _set_object_settings(
     settings.effector_use_scale = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_EFFECTOR_USE_SCALE
     ]
+    settings.effector_scale_uniform = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_SCALE_UNIFORM
+    ]
+    settings.effector_scale_absolute = properties.GRID_INPUT_DEFAULTS[
+        properties.SOCKET_EFFECTOR_SCALE_ABSOLUTE
+    ]
     settings.effector_scale_x = properties.GRID_INPUT_DEFAULTS[
         properties.SOCKET_EFFECTOR_SCALE_X
     ]
