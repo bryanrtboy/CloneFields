@@ -1213,6 +1213,11 @@ def main() -> None:
             effector_modifier,
             props.SOCKET_EFFECTOR_OBJECT,
         )
+        effector_enabled_id = _modifier_input_id(
+            inputs,
+            effector_modifier,
+            props.SOCKET_EFFECTOR_ENABLED,
+        )
         effector_radius_id = _modifier_input_id(
             inputs,
             effector_modifier,
@@ -1229,6 +1234,7 @@ def main() -> None:
             props.SOCKET_EFFECTOR_STRENGTH,
         )
         assert effector_modifier[effector_object_id] == plain_effector
+        assert effector_modifier[effector_enabled_id]
         assert abs(effector_modifier[effector_strength_id] - 1.0) < 0.0001
         effector_cloner.clone_fields_cloner.effector_strength = 50
         assert abs(effector_modifier[effector_strength_id] - 0.5) < 0.0001
@@ -1756,11 +1762,30 @@ def main() -> None:
         bpy.context.view_layer.update()
         cubic_field_bounds = _evaluated_bounds_size(effector_cloner)
         assert plain_effector.name.startswith("Basic Effector [Cubic]")
-        assert plain_effector.empty_display_type == "CUBE"
+        assert plain_effector.empty_display_type == "PLAIN_AXES"
+        assert tuple(round(value, 3) for value in plain_effector.scale[:]) == (
+            1.0,
+            1.0,
+            1.0,
+        )
         assert plain_effector.get(props.PROP_EFFECTOR_SHAPE) == "CUBE"
         assert effector_modifier[effector_field_id] == 1
         assert cubic_field_bounds[1] > spherical_field_bounds[1] + 1.0
+        plain_effector_settings.box_uniform = False
+        plain_effector_settings.box_x = 8.0
+        plain_effector_settings.box_y = 2.0
+        plain_effector_settings.box_z = 4.0
+        assert tuple(round(value, 3) for value in plain_effector.scale[:]) == (
+            1.0,
+            1.0,
+            1.0,
+        )
         plain_effector_settings.shape = eff.FIELD_SHAPE_SPHERE
+        assert tuple(round(value, 3) for value in plain_effector.scale[:]) == (
+            1.0,
+            1.0,
+            1.0,
+        )
 
         effector_cloner.clone_fields_cloner.count_x = 1
         effector_cloner.clone_fields_cloner.count_y = 1
@@ -1882,6 +1907,22 @@ def main() -> None:
         assert effector_cloner.clone_fields_cloner.effector2_object is None
         assert effector_cloner.clone_fields_cloner.selected_effector_slot == 0
         assert effector_cloner == bpy.context.view_layer.objects.active
+
+        plain_effector_settings.use_rotation = True
+        plain_effector_settings.rotation_z = math.radians(45.0)
+        effector_cloner.update_tag()
+        effector_modifier.node_group.update_tag()
+        bpy.context.view_layer.update()
+        assert effector_cloner.clone_fields_cloner.effector_enabled
+        assert effector_modifier[effector_enabled_id]
+        direct_deleted_effector_name = plain_effector.name
+        bpy.data.objects.remove(plain_effector, do_unlink=True)
+        bpy.context.view_layer.update()
+        eff.clear_missing_effector_slots()
+        assert direct_deleted_effector_name not in bpy.data.objects
+        assert effector_cloner.clone_fields_cloner.effector_object is None
+        assert not effector_cloner.clone_fields_cloner.effector_enabled
+        assert not effector_modifier[effector_enabled_id]
 
         rotation_stack_mesh = bpy.data.meshes.new("Effector Rotation Stack Mesh")
         rotation_stack_mesh.from_pydata(

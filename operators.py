@@ -319,6 +319,7 @@ class CLONE_FIELDS_OT_select_plain_effector(bpy.types.Operator):
             return {"CANCELLED"}
 
         cloner_object.clone_fields_cloner.selected_effector_slot = self.slot_index
+        _tag_view3d_redraw(context)
         return {"FINISHED"}
 
 
@@ -338,6 +339,7 @@ class CLONE_FIELDS_OT_select_effector_object(bpy.types.Operator):
 
         settings = cloner_object.clone_fields_cloner
         settings.selected_effector_slot = self.slot_index
+        _tag_view3d_redraw(context)
         effector = getattr(settings, EFFECTOR_SLOT_PROPERTIES[self.slot_index]["object"])
         if effector is None:
             return {"CANCELLED"}
@@ -346,6 +348,15 @@ class CLONE_FIELDS_OT_select_effector_object(bpy.types.Operator):
         effector.select_set(True)
         context.view_layer.objects.active = effector
         return {"FINISHED"}
+
+
+def _tag_view3d_redraw(context) -> None:
+    screen = getattr(context, "screen", None)
+    if screen is None:
+        return
+    for area in screen.areas:
+        if area.type == "VIEW_3D":
+            area.tag_redraw()
 
 
 class CLONE_FIELDS_OT_delete_effector(bpy.types.Operator):
@@ -560,7 +571,17 @@ def _add_effector(context, operator, effector_type: str):
         properties.EFFECTOR_SOCKET_SETS[slot_index]["radius"]
     ]
     effector = bpy.data.objects.new(effectors.effector_name(effector_type, shape), None)
-    effectors.configure_effector_object(effector, shape, radius, effector_type)
+    effectors.configure_effector_object(
+        effector,
+        shape,
+        radius,
+        effector_type,
+        box_size=(
+            properties.GRID_INPUT_DEFAULTS[properties.EFFECTOR_SOCKET_SETS[slot_index]["box_x"]],
+            properties.GRID_INPUT_DEFAULTS[properties.EFFECTOR_SOCKET_SETS[slot_index]["box_y"]],
+            properties.GRID_INPUT_DEFAULTS[properties.EFFECTOR_SOCKET_SETS[slot_index]["box_z"]],
+        ),
+    )
     context.collection.objects.link(effector)
     if hasattr(effector, "clone_fields_effector"):
         effector.clone_fields_effector.type = effector_type

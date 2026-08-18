@@ -39,11 +39,12 @@ def _draw_viewport_guides() -> None:
         return
 
     selected_objects = list(bpy.context.selected_objects)
-    selected_cloners = [
-        obj for obj in bpy.context.selected_objects if modifier_inputs.is_cloner_object(obj)
-    ]
+    selected_cloners = _cloners_for_context(selected_objects)
     effector_guides = _effector_guides_for_selection(selected_objects)
-    if not selected_cloners and not effector_guides:
+    guide_settings = _unique_settings(
+        [cloner.clone_fields_cloner for cloner in selected_cloners] + effector_guides
+    )
+    if not guide_settings:
         return
 
     try:
@@ -62,17 +63,10 @@ def _draw_viewport_guides() -> None:
         elif settings.distribution_mode == "RADIAL":
             lines = _radial_guide_lines(cloner, settings)
             _draw_lines(batch_for_shader, shader, lines, (1.0, 0.85, 0.1, 0.9))
+    for settings in guide_settings:
         for index, slot in enumerate(effectors.EFFECTOR_SLOT_PROPERTIES):
             _draw_effector_guides(
-                batch_for_shader,
-                shader,
-                settings,
-                slot,
-                selected=index == settings.selected_effector_slot,
-            )
-    for settings in effector_guides:
-        for index, slot in enumerate(effectors.EFFECTOR_SLOT_PROPERTIES):
-            _draw_effector_guides(
+                gpu,
                 batch_for_shader,
                 shader,
                 settings,
@@ -81,6 +75,42 @@ def _draw_viewport_guides() -> None:
             )
     gpu.state.line_width_set(1.0)
     gpu.state.blend_set("NONE")
+
+
+def _cloners_for_context(selected_objects) -> list[bpy.types.Object]:
+    candidates = list(selected_objects)
+    active = getattr(bpy.context.view_layer.objects, "active", None)
+    context_object = getattr(bpy.context, "object", None)
+    for obj in (active, context_object):
+        if obj is not None and obj not in candidates:
+            candidates.append(obj)
+    return _unique_objects(
+        obj for obj in candidates if modifier_inputs.is_cloner_object(obj)
+    )
+
+
+def _unique_objects(objects) -> list[bpy.types.Object]:
+    unique = []
+    seen = set()
+    for obj in objects:
+        if obj.name in seen:
+            continue
+        unique.append(obj)
+        seen.add(obj.name)
+    return unique
+
+
+def _unique_settings(settings_list) -> list:
+    unique = []
+    seen = set()
+    for settings in settings_list:
+        owner = getattr(settings, "id_data", None)
+        key = owner.name if owner is not None else id(settings)
+        if key in seen:
+            continue
+        unique.append(settings)
+        seen.add(key)
+    return unique
 
 
 def _draw_shader_previews(gpu, batch_for_shader) -> None:
@@ -278,7 +308,15 @@ def _effector_guides_for_selection(selected_objects) -> list:
     return settings
 
 
-def _draw_effector_guides(batch_for_shader, shader, settings, slot, *, selected: bool) -> None:
+def _draw_effector_guides(
+    gpu,
+    batch_for_shader,
+    shader,
+    settings,
+    slot,
+    *,
+    selected: bool,
+) -> None:
     effector = getattr(settings, slot["object"])
     if effector is None:
         return
@@ -329,8 +367,9 @@ def _draw_effector_guides(batch_for_shader, shader, settings, slot, *, selected:
     else:
         outer = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), outer_radius)
         inner = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), inner_radius)
-    outer_color = (0.35, 0.75, 1.0, 0.95) if selected else (0.35, 0.75, 1.0, 0.35)
-    inner_color = (1.0, 0.55, 0.15, 0.9) if selected else (1.0, 0.55, 0.15, 0.3)
+    outer_color = (0.1, 0.45, 1.0, 0.95) if selected else (0.0, 0.0, 0.0, 0.35)
+    inner_color = (1.0, 0.55, 0.05, 0.9) if selected else (0.0, 0.0, 0.0, 0.2)
+    gpu.state.line_width_set(4.0 if selected else 1.5)
     _draw_lines(batch_for_shader, shader, outer, outer_color)
     _draw_lines(batch_for_shader, shader, inner, inner_color)
 

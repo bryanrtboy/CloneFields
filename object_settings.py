@@ -202,6 +202,7 @@ def _sync_effector_shape(self, context) -> None:
             self.effector_shape,
             self.effector_radius,
             self.effector_type,
+            box_size=_default_effector_box_size(0),
         )
         effectors.rename_effector_object(
             self.effector_object,
@@ -349,6 +350,7 @@ def _sync_effector_slot_value(
                 getattr(self, shape_property),
                 getattr(self, radius_property),
                 getattr(self, type_property),
+                box_size=_default_effector_box_size(slot_index),
             )
             effectors.rename_effector_object(
                 effector,
@@ -843,9 +845,16 @@ def _sync_effector_settings(self, context) -> None:
     obj = self.id_data
     if self.type == effectors.EFFECTOR_TYPE_SHADER:
         obj.data = self.shader_image
-    effectors.configure_effector_object(obj, self.shape, self.radius, self.type)
+    effectors.configure_effector_object(
+        obj,
+        self.shape,
+        self.radius,
+        self.type,
+        box_size=(self.box_x, self.box_y, self.box_z),
+    )
     effectors.rename_effector_object(obj, self.shape, self.type)
     effectors.sync_effector_to_referencing_cloners(obj)
+    _tag_view3d_redraw(context)
 
 
 def _sync_shader_image(self, context) -> None:
@@ -931,12 +940,41 @@ def _sync_box_uniform(self, context) -> None:
 
 def _sync_effector_radius_setting(self, context) -> None:
     obj = self.id_data
-    effectors.configure_effector_object(obj, self.shape, self.radius, self.type)
+    effectors.configure_effector_object(
+        obj,
+        self.shape,
+        self.radius,
+        self.type,
+        box_size=(self.box_x, self.box_y, self.box_z),
+    )
     effectors.sync_effector_to_referencing_cloners(obj)
+    _tag_view3d_redraw(context)
+
+
+def _tag_view3d_redraw(context) -> None:
+    screen = getattr(context, "screen", None)
+    if screen is None:
+        return
+    for area in screen.areas:
+        if area.type == "VIEW_3D":
+            area.tag_redraw()
+
+
+def _sync_selected_effector_slot(self, context) -> None:
+    _tag_view3d_redraw(context)
 
 
 def _effector_slot_property_name(slot_index: int, key: str) -> str:
     return effectors.EFFECTOR_SLOT_PROPERTIES[slot_index][key]
+
+
+def _default_effector_box_size(slot_index: int) -> tuple[float, float, float]:
+    socket_set = properties.EFFECTOR_SOCKET_SETS[slot_index]
+    return (
+        properties.GRID_INPUT_DEFAULTS[socket_set["box_x"]],
+        properties.GRID_INPUT_DEFAULTS[socket_set["box_y"]],
+        properties.GRID_INPUT_DEFAULTS[socket_set["box_z"]],
+    )
 
 
 class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
@@ -1997,6 +2035,7 @@ class CloneFieldsClonerSettings(bpy.types.PropertyGroup):
         default=0,
         min=0,
         max=2,
+        update=_sync_selected_effector_slot,
     )
     show_source_position: BoolProperty(
         name="Position",

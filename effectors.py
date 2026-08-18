@@ -245,20 +245,24 @@ def configure_effector_object(
     shape: str,
     radius: float,
     effector_type: str | None = None,
+    *,
+    box_size: tuple[float, float, float] | None = None,
 ) -> None:
+    display_size = radius
     if effector_type == EFFECTOR_TYPE_SHADER:
         obj.empty_display_type = "PLAIN_AXES"
     elif shape == FIELD_SHAPE_NONE:
         obj.empty_display_type = "PLAIN_AXES"
     elif shape == FIELD_SHAPE_CUBE:
-        obj.empty_display_type = "CUBE"
+        obj.empty_display_type = "PLAIN_AXES"
+        display_size = min(0.5, max(0.05, radius * 0.025))
     elif shape == FIELD_SHAPE_CYLINDER:
         obj.empty_display_type = "CIRCLE"
     elif shape == FIELD_SHAPE_LINEAR:
         obj.empty_display_type = "ARROWS"
     else:
         obj.empty_display_type = "SPHERE"
-    obj.empty_display_size = radius
+    obj.empty_display_size = display_size
     obj.show_name = True
     obj.hide_render = True
     obj.scale = (1.0, 1.0, 1.0)
@@ -432,6 +436,11 @@ def sync_effector_slot(settings, modifier, slot_index: int) -> None:
         effector_settings.shape,
         effector_settings.radius,
         effector_settings.type,
+        box_size=(
+            effector_settings.box_x,
+            effector_settings.box_y,
+            effector_settings.box_z,
+        ),
     )
     rename_effector_object(effector, effector_settings.shape, effector_settings.type)
     if effector_settings.type == EFFECTOR_TYPE_SHADER:
@@ -468,6 +477,38 @@ def sync_effector_slot(settings, modifier, slot_index: int) -> None:
     modifier_inputs.set_modifier_input(modifier, sockets["strength"], combined_strength)
 
 
+def clear_missing_effector_slots() -> None:
+    from . import modifier_inputs
+
+    for cloner in bpy.data.objects:
+        modifier = modifier_inputs.get_cloner_modifier(cloner)
+        if modifier is None or not hasattr(cloner, "clone_fields_cloner"):
+            continue
+        settings = cloner.clone_fields_cloner
+        changed = False
+        for slot_index, slot in enumerate(EFFECTOR_SLOT_PROPERTIES):
+            effector = getattr(settings, slot["object"])
+            socket_set = properties.EFFECTOR_SOCKET_SETS[slot_index]
+            modifier_effector = modifier_inputs.get_modifier_input(
+                modifier,
+                socket_set["object"],
+            )
+            if (
+                effector is not None
+                or (
+                    modifier_effector is None
+                    and not getattr(settings, slot["enabled"])
+                )
+            ):
+                continue
+            setattr(settings, slot["enabled"], False)
+            modifier_inputs.set_modifier_input(modifier, socket_set["enabled"], False)
+            modifier_inputs.set_modifier_input(modifier, socket_set["object"], None)
+            changed = True
+        if changed:
+            modifier_inputs.tag_modifier_owner(modifier)
+
+
 def tag_referencing_cloners(effector: bpy.types.Object) -> None:
     if not is_effector_object(effector):
         return
@@ -493,6 +534,7 @@ def _depsgraph_update_post(scene, depsgraph) -> None:
         if isinstance(datablock, bpy.types.Object) and is_effector_object(datablock):
             enforce_effector_transform_constraints(datablock)
             tag_referencing_cloners(datablock)
+    clear_missing_effector_slots()
 
 
 def _effector_constraint_timer() -> float | None:
