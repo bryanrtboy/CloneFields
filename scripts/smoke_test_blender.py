@@ -1168,7 +1168,7 @@ def main() -> None:
         assert add_effector_result == {"FINISHED"}, add_effector_result
         plain_effector = effector_cloner.clone_fields_cloner.effector_object
         assert plain_effector.type == "EMPTY"
-        assert plain_effector.empty_display_type == "SPHERE"
+        assert plain_effector.empty_display_type == "PLAIN_AXES"
         assert plain_effector.hide_render
         assert plain_effector.name.startswith("Basic Effector [Spherical]")
         assert plain_effector.get(props.PROP_EFFECTOR_TYPE) == "BASIC"
@@ -1814,7 +1814,7 @@ def main() -> None:
             predicate=lambda vertex: abs(vertex[2]) > 1.5,
         )
         assert plain_effector.name.startswith("Basic Effector [Cylindrical]")
-        assert plain_effector.empty_display_type == "CIRCLE"
+        assert plain_effector.empty_display_type == "PLAIN_AXES"
         assert plain_effector.get(props.PROP_EFFECTOR_SHAPE) == "CYLINDER"
         assert effector_modifier[effector_field_id] == 2
         assert cylinder_outer_y > small_sphere_outer_y + 0.2
@@ -1847,7 +1847,7 @@ def main() -> None:
             predicate=lambda vertex: abs(vertex[0]) > 1.5,
         )
         assert plain_effector.name.startswith("Basic Effector [Linear]")
-        assert plain_effector.empty_display_type == "ARROWS"
+        assert plain_effector.empty_display_type == "PLAIN_AXES"
         assert plain_effector.get(props.PROP_EFFECTOR_SHAPE) == "LINEAR"
         assert effector_modifier[effector_field_id] == 3
         assert linear_outer_y > small_sphere_outer_y + 0.2

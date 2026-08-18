@@ -367,9 +367,9 @@ def _draw_effector_guides(
     else:
         outer = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), outer_radius)
         inner = _sphere_lines(effector.matrix_world, Vector((0.0, 0.0, 0.0)), inner_radius)
-    outer_color = (0.1, 0.45, 1.0, 0.95) if selected else (0.0, 0.0, 0.0, 0.35)
-    inner_color = (1.0, 0.55, 0.05, 0.9) if selected else (0.0, 0.0, 0.0, 0.2)
-    gpu.state.line_width_set(4.0 if selected else 1.5)
+    outer_color = (0.1, 0.45, 1.0, 0.95) if selected else (0.0, 0.0, 0.0, 0.75)
+    inner_color = (1.0, 0.55, 0.05, 0.9) if selected else (0.0, 0.0, 0.0, 0.45)
+    gpu.state.line_width_set(4.5 if selected else 2.75)
     _draw_lines(batch_for_shader, shader, outer, outer_color)
     _draw_lines(batch_for_shader, shader, inner, inner_color)
 

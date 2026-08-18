@@ -248,20 +248,15 @@ def configure_effector_object(
     *,
     box_size: tuple[float, float, float] | None = None,
 ) -> None:
-    display_size = radius
     if effector_type == EFFECTOR_TYPE_SHADER:
         obj.empty_display_type = "PLAIN_AXES"
+        display_size = _controller_display_size(radius)
     elif shape == FIELD_SHAPE_NONE:
         obj.empty_display_type = "PLAIN_AXES"
-    elif shape == FIELD_SHAPE_CUBE:
-        obj.empty_display_type = "PLAIN_AXES"
-        display_size = min(0.5, max(0.05, radius * 0.025))
-    elif shape == FIELD_SHAPE_CYLINDER:
-        obj.empty_display_type = "CIRCLE"
-    elif shape == FIELD_SHAPE_LINEAR:
-        obj.empty_display_type = "ARROWS"
+        display_size = _controller_display_size(radius)
     else:
-        obj.empty_display_type = "SPHERE"
+        obj.empty_display_type = "PLAIN_AXES"
+        display_size = _controller_display_size(radius)
     obj.empty_display_size = display_size
     obj.show_name = True
     obj.hide_render = True
@@ -274,10 +269,16 @@ def configure_effector_object(
     obj[properties.PROP_EFFECTOR_SHAPE] = shape
 
 
+def _controller_display_size(radius: float) -> float:
+    return min(0.5, max(0.05, radius * 0.025))
+
+
 def configure_shader_display(obj: bpy.types.Object, settings) -> None:
     """Keep the selectable controller separate from the custom image preview."""
     obj.empty_display_type = "PLAIN_AXES"
-    obj.empty_display_size = max(settings.shader_width, settings.shader_height) * 0.025
+    obj.empty_display_size = _controller_display_size(
+        max(settings.shader_width, settings.shader_height)
+    )
     obj.scale = (1.0, 1.0, 1.0)
 
 
