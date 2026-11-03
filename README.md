@@ -28,6 +28,8 @@ move, rotate, or scale the clones.
 
 ## Clone and deform curves
 
+![Clone Curves in Blender](docs/ClonerCurvesScreenshot.png)
+
 1. Select a **2D Curve**. Subdivide the parts you want to deform before cloning.
 2. Choose **Add > Clone Fields > Curve Cloner**.
 3. Open **Object Properties > Curve Cloner**. Set the count and spacing.
