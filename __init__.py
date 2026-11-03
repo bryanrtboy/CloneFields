@@ -6,6 +6,7 @@ import importlib
 
 from . import (
     cloner,
+    curve_fields,
     effectors,
     gizmos,
     geometry_nodes,
@@ -30,6 +31,7 @@ modules = (
     grid,
     geometry_nodes,
     cloner,
+    curve_fields,
     gizmos,
     operators,
     panels,
@@ -43,6 +45,7 @@ def register() -> None:
         importlib.reload(module)
     object_settings.register()
     effectors.register()
+    curve_fields.register()
     operators.register()
     panels.register()
     menus.register()
@@ -59,4 +62,5 @@ def unregister() -> None:
     panels.unregister()
     operators.unregister()
     effectors.unregister()
+    curve_fields.unregister()
     object_settings.unregister()

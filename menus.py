@@ -13,6 +13,7 @@ class VIEW3D_MT_clone_fields_add(bpy.types.Menu):
         layout = self.layout
         layout.operator_context = "EXEC_DEFAULT"
         layout.operator("clone_fields.add_cloner", text="Cloner", icon="OUTLINER_OB_EMPTY")
+        layout.operator("clone_fields.add_curve_cloner", text="Curve Cloner", icon="CURVE_DATA")
 
 
 def draw_add_menu(self, context):

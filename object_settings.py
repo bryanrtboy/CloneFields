@@ -854,6 +854,8 @@ def _sync_effector_settings(self, context) -> None:
     )
     effectors.rename_effector_object(obj, self.shape, self.type)
     effectors.sync_effector_to_referencing_cloners(obj)
+    from . import curve_fields
+    curve_fields.request_update(effector=obj)
     _tag_view3d_redraw(context)
 
 
@@ -1003,7 +1005,8 @@ class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
         update=_sync_effector_settings,
     )
     strength: IntProperty(
-        name="Global Strength",
+        name="Effector Strength",
+        description="Shared strength: affects every cloner and stack entry using this Effector object. Multiplies each assignment's local influence",
         default=properties.EFFECTOR_STRENGTH_PERCENT_DEFAULT,
         min=0,
         max=100,
@@ -1143,6 +1146,12 @@ class CloneFieldsEffectorSettings(bpy.types.PropertyGroup):
         description="Image whose luminance controls the Effector",
         type=bpy.types.Image,
         update=_sync_shader_image,
+    )
+    shader_show_image: BoolProperty(
+        name="Show Image in Viewport",
+        description="Show the projected image without changing deformation or field guides",
+        default=True,
+        update=lambda self, context: _tag_view3d_redraw(context),
     )
     shader_preserve_aspect: BoolProperty(
         name="Preserve Aspect",

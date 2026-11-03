@@ -1,0 +1,4 @@
+# Local image/terrain inputs are not extension source assets.
+/textures/
+__pycache__/
+*.py[cod]

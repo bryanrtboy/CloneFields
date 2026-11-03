@@ -7,7 +7,7 @@ import math
 import bpy
 from mathutils import Vector
 
-from . import effectors, modifier_inputs
+from . import curve_fields, effectors, modifier_inputs
 
 
 _DRAW_HANDLE = None
@@ -44,7 +44,8 @@ def _draw_viewport_guides() -> None:
     guide_settings = _unique_settings(
         [cloner.clone_fields_cloner for cloner in selected_cloners] + effector_guides
     )
-    if not guide_settings:
+    curve_controllers = _curve_cloners_for_selection(selected_objects)
+    if not guide_settings and not curve_controllers:
         return
 
     try:
@@ -73,6 +74,10 @@ def _draw_viewport_guides() -> None:
                 slot,
                 selected=index == settings.selected_effector_slot,
             )
+    for controller in curve_controllers:
+        for entry in controller.clone_curve_fields.effects:
+            if entry.enabled and entry.effector:
+                _draw_effector_guides(gpu, batch_for_shader, shader, entry, {"object": "effector"}, selected=True)
     gpu.state.line_width_set(1.0)
     gpu.state.blend_set("NONE")
 
@@ -120,38 +125,58 @@ def _draw_shader_previews(gpu, batch_for_shader) -> None:
         image_shader = gpu.shader.from_builtin("IMAGE")
 
     visible = set(bpy.context.visible_objects)
+    for effector, image in _shader_preview_sources(visible):
+        effector_settings = effector.clone_fields_effector
+        try:
+            texture = gpu.texture.from_image(image)
+        except Exception:
+            continue
+        _draw_tiled_image(
+            gpu, batch_for_shader, image_shader, texture, effector.matrix_world,
+            effector_settings.shader_width, effector_settings.shader_height,
+            effector_settings.shader_tiles_x, effector_settings.shader_tiles_y,
+        )
+
+
+def _curve_cloners_for_selection(selected_objects):
+    selected = set(selected_objects)
+    return [obj for obj in bpy.data.objects if obj.get(curve_fields.CONTROLLER) and (
+        obj in selected or obj.clone_curve_fields.effector in selected
+        or any(entry.effector in selected for entry in obj.clone_curve_fields.effects)
+        or any(curve_fields.controller_for(child) == obj for child in selected)
+    )]
+
+
+def _shader_preview_sources(visible):
+    """Share projection drawing for native Curve and Geometry Nodes cloners."""
     drawn = set()
     for cloner in bpy.data.objects:
-        if cloner not in visible or not modifier_inputs.is_cloner_object(cloner):
+        if cloner not in visible:
             continue
-        settings = cloner.clone_fields_cloner
-        for slot in effectors.EFFECTOR_SLOT_PROPERTIES:
-            effector = getattr(settings, slot["object"])
+        if cloner.get(curve_fields.CONTROLLER):
+            sources = [(entry.effector, curve_fields.preview_image(cloner, index))
+                       for index, entry in enumerate(cloner.clone_curve_fields.effects)
+                       if entry.enabled and entry.effector and entry.effector.clone_fields_effector.type == "SHADER"]
+        elif modifier_inputs.is_cloner_object(cloner):
+            sources = [(getattr(cloner.clone_fields_cloner, slot["object"]), None)
+                       for slot in effectors.EFFECTOR_SLOT_PROPERTIES]
+        else:
+            continue
+        for effector, image in sources:
             if effector in drawn or effector not in visible:
                 continue
             effector_settings = getattr(effector, "clone_fields_effector", None)
             if (
                 effector_settings is None
                 or effector_settings.type != effectors.EFFECTOR_TYPE_SHADER
-                or effector_settings.shader_image is None
+                or not effector_settings.shader_show_image
             ):
                 continue
-            try:
-                texture = gpu.texture.from_image(effector_settings.shader_image)
-            except Exception:
+            image = image if cloner.get(curve_fields.CONTROLLER) else effector_settings.shader_image
+            if image is None:
                 continue
-            _draw_tiled_image(
-                gpu,
-                batch_for_shader,
-                image_shader,
-                texture,
-                effector.matrix_world,
-                effector_settings.shader_width,
-                effector_settings.shader_height,
-                effector_settings.shader_tiles_x,
-                effector_settings.shader_tiles_y,
-            )
             drawn.add(effector)
+            yield effector, image
 
 
 def _draw_tiled_image(

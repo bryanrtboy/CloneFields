@@ -20,6 +20,7 @@ EXCLUDED_PARTS = {
     ".git",
     "__pycache__",
     "dist",
+    "textures",
 }
 EXCLUDED_NAMES = {
     ".DS_Store",
@@ -31,12 +32,16 @@ EXCLUDED_SUFFIXES = {
     ".jpg",
     ".pyc",
     ".png",
+    ".tif",
+    ".tiff",
     ".webp",
 }
 
 
 def should_include(path: Path) -> bool:
     relative = path.relative_to(REPO_ROOT)
+    if path.suffix.lower() in {".blend", ".blend1", ".blend2"} and path != NODE_LIBRARY_PATH:
+        return False
     if any(part in EXCLUDED_PARTS for part in relative.parts):
         return False
     if path.name in EXCLUDED_NAMES:

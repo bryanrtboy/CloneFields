@@ -252,6 +252,7 @@ def _draw_effector_settings(box, settings, slot, effector_settings) -> None:
         clear.operator("clone_fields.clear_shader_image", text="", icon="X")
         if effector_settings.shader_image is not None:
             box.template_preview(effector_settings.shader_image, show_buttons=False)
+        box.prop(effector_settings, "shader_show_image")
         box.prop(effector_settings, "shader_preserve_aspect")
         size_row = box.row(align=True)
         size_row.label(text="Projection Size")
