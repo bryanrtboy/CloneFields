@@ -132,6 +132,9 @@ def sync_cloner_source_visibility(cloner: bpy.types.Object) -> None:
     for source in sources:
         source.hide_set(should_hide_source)
         source.hide_render = should_hide_source
+        for child in _hierarchy_object_children(source):
+            child.hide_set(should_hide_source)
+            child.hide_render = should_hide_source
 
 
 def _parent_source_to_cloner(
@@ -168,16 +171,22 @@ def _sync_source_collection(
     _ensure_sources_for_duplicate(cloner, modifier)
     collection = _source_collection_for_cloner(cloner)
     sources = _source_children(cloner)
+    collection_sources = [
+        _source_collection_entry(source, collection)
+        for source in sources
+    ]
     changed = False
 
     for obj in list(collection.objects):
-        if obj not in sources:
+        if obj not in collection_sources:
             collection.objects.unlink(obj)
+            if obj.get(properties.PROP_HIERARCHY_PROXY):
+                _remove_hierarchy_proxy(obj)
             changed = True
 
-    for source in sources:
-        if source.name not in collection.objects:
-            collection.objects.link(source)
+    for source, collection_source in zip(sources, collection_sources):
+        if collection_source.name not in collection.objects:
+            collection.objects.link(collection_source)
             changed = True
         source[properties.PROP_MANAGED_SOURCE] = True
         source[properties.PROP_SOURCE_OWNER] = cloner.name
@@ -236,11 +245,14 @@ def _ensure_sources_for_duplicate(
     if inherited_collection is None:
         return
 
-    source_candidates = [
-        obj
-        for obj in inherited_collection.objects
-        if _is_valid_source_child(obj)
-    ]
+    source_candidates = []
+    for obj in inherited_collection.objects:
+        if obj.get(properties.PROP_HIERARCHY_PROXY):
+            root = obj.get(properties.PROP_HIERARCHY_ROOT)
+            if root is not None:
+                source_candidates.append(root)
+        elif _is_valid_source_child(obj):
+            source_candidates.append(obj)
     if not source_candidates:
         return
 
@@ -258,6 +270,18 @@ def _ensure_sources_for_duplicate(
         duplicate.hide_render = True
         duplicate[properties.PROP_MANAGED_SOURCE] = True
         duplicate[properties.PROP_SOURCE_OWNER] = cloner.name
+        for child in _hierarchy_object_children(source):
+            child_duplicate = child.copy()
+            if child.data is not None:
+                child_duplicate.data = child.data.copy()
+            child_duplicate.animation_data_clear()
+            child_duplicate.name = child.name
+            child_matrix_world = child.matrix_world.copy()
+            _link_object_with_cloner(child_duplicate, cloner)
+            child_duplicate.parent = duplicate
+            child_duplicate.matrix_world = child_matrix_world
+            child_duplicate.hide_set(True)
+            child_duplicate.hide_render = True
 
 
 def _link_object_with_cloner(
@@ -286,6 +310,108 @@ def _source_children(cloner: bpy.types.Object) -> list[bpy.types.Object]:
         for child in cloner.children
         if _is_valid_source_child(child)
     ]
+
+
+def _hierarchy_object_children(source: bpy.types.Object) -> list[bpy.types.Object]:
+    """Return supported direct object children for an Empty hierarchy source."""
+
+    if source.type != "EMPTY":
+        return []
+    return [child for child in source.children if _is_valid_source_child(child)]
+
+
+def _source_collection_entry(
+    source: bpy.types.Object,
+    collection: bpy.types.Collection,
+) -> bpy.types.Object:
+    children = _hierarchy_object_children(source)
+    if not children:
+        return source
+
+    proxy = next(
+        (
+            obj
+            for obj in collection.objects
+            if obj.get(properties.PROP_HIERARCHY_PROXY)
+            and obj.get(properties.PROP_HIERARCHY_ROOT) == source
+        ),
+        None,
+    )
+    if proxy is None:
+        mesh = bpy.data.meshes.new(f"{source.name} Hierarchy Source")
+        proxy = bpy.data.objects.new(f"{source.name} Hierarchy Source", mesh)
+        proxy[properties.PROP_HIERARCHY_PROXY] = True
+        proxy[properties.PROP_HIERARCHY_ROOT] = source
+        collection.objects.link(proxy)
+
+    proxy.matrix_world = source.matrix_world
+    signature = ":".join(str(child.as_pointer()) for child in children)
+    if proxy.get(properties.PROP_HIERARCHY_CHILD_SIGNATURE) != signature:
+        _configure_hierarchy_proxy(proxy, children)
+        proxy[properties.PROP_HIERARCHY_CHILD_SIGNATURE] = signature
+    return proxy
+
+
+def _configure_hierarchy_proxy(
+    proxy: bpy.types.Object,
+    children: list[bpy.types.Object],
+) -> None:
+    modifier = proxy.modifiers.get("Clone Fields Hierarchy")
+    if modifier is None:
+        modifier = proxy.modifiers.new(name="Clone Fields Hierarchy", type="NODES")
+
+    old_group = modifier.node_group
+    node_group = bpy.data.node_groups.new(
+        f"{proxy.name} Geometry",
+        "GeometryNodeTree",
+    )
+    interface = node_group.interface
+    interface.new_socket(
+        name=properties.SOCKET_GEOMETRY,
+        in_out="OUTPUT",
+        socket_type="NodeSocketGeometry",
+    )
+    nodes = node_group.nodes
+    links = node_group.links
+    output = nodes.new("NodeGroupOutput")
+    output.location = (420, 0)
+    join = nodes.new("GeometryNodeJoinGeometry")
+    join.location = (140, 0)
+    links.new(
+        join.outputs[properties.SOCKET_GEOMETRY],
+        output.inputs[properties.SOCKET_GEOMETRY],
+    )
+
+    for index, child in enumerate(children):
+        object_info = nodes.new("GeometryNodeObjectInfo")
+        object_info.location = (-180, -index * 180)
+        object_info.transform_space = "RELATIVE"
+        object_info.inputs["Object"].default_value = child
+        if "As Instance" in object_info.inputs:
+            object_info.inputs["As Instance"].default_value = False
+        links.new(
+            object_info.outputs[properties.SOCKET_GEOMETRY],
+            join.inputs[properties.SOCKET_GEOMETRY],
+        )
+
+    modifier.node_group = node_group
+    if old_group is not None and old_group.users == 0:
+        bpy.data.node_groups.remove(old_group)
+
+
+def _remove_hierarchy_proxy(proxy: bpy.types.Object) -> None:
+    mesh = proxy.data
+    node_groups = [
+        modifier.node_group
+        for modifier in proxy.modifiers
+        if modifier.node_group
+    ]
+    bpy.data.objects.remove(proxy)
+    if mesh is not None and mesh.users == 0:
+        bpy.data.meshes.remove(mesh)
+    for node_group in node_groups:
+        if node_group.users == 0:
+            bpy.data.node_groups.remove(node_group)
 
 
 def _is_valid_source_child(obj: bpy.types.Object) -> bool:

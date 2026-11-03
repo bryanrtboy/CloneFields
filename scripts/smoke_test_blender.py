@@ -2384,6 +2384,109 @@ def main() -> None:
         assert grid_alternating_cloner.clone_fields_cloner.radial_radius != radial_radius_before
         assert abs(grid_alternating_cloner.clone_fields_cloner.radial_radius - 5.0) < 0.0001
 
+        hierarchy_root = bpy.data.objects.new("Hierarchy Anchor", None)
+        bpy.context.collection.objects.link(hierarchy_root)
+        hierarchy_root.location = (30.0, 0.0, 0.0)
+        hierarchy_mesh = bpy.data.meshes.new("Hierarchy Child Mesh")
+        hierarchy_mesh.from_pydata(
+            [
+                (-0.5, -0.5, -0.5),
+                (-0.5, -0.5, 0.5),
+                (-0.5, 0.5, -0.5),
+                (-0.5, 0.5, 0.5),
+                (0.5, -0.5, -0.5),
+                (0.5, -0.5, 0.5),
+                (0.5, 0.5, -0.5),
+                (0.5, 0.5, 0.5),
+            ],
+            [],
+            [],
+        )
+        hierarchy_mesh.update()
+        hierarchy_child = bpy.data.objects.new("Hierarchy Child", hierarchy_mesh)
+        bpy.context.collection.objects.link(hierarchy_child)
+        hierarchy_child.parent = hierarchy_root
+        hierarchy_child.location = (2.0, 0.0, 0.0)
+
+        bpy.ops.clone_fields.add_cloner(
+            "EXEC_DEFAULT",
+            source_object_name=hierarchy_root.name,
+            count_x=1,
+            count_y=1,
+            count_z=1,
+            spacing_x=2.0,
+            spacing_y=2.0,
+            spacing_z=2.0,
+        )
+        hierarchy_cloner = bpy.context.object
+        bpy.context.view_layer.update()
+        assert _evaluated_vertex_count(hierarchy_cloner) == 8
+        hierarchy_center = _evaluated_bounds_center(hierarchy_cloner)
+        assert abs(hierarchy_center[0] - 2.0) < 0.0001, hierarchy_center
+        assert hierarchy_root.hide_get()
+        assert hierarchy_child.hide_get()
+
+        hierarchy_root.rotation_euler.z = 1.5707963267948966
+        sources.sync_all_source_visibility()
+        bpy.context.view_layer.update()
+        rotated_hierarchy_center = _evaluated_bounds_center(hierarchy_cloner)
+        assert abs(rotated_hierarchy_center[0] - 2.0) < 0.0001, rotated_hierarchy_center
+        assert abs(rotated_hierarchy_center[1]) < 0.0001, rotated_hierarchy_center
+
+        hierarchy_second_mesh = bpy.data.meshes.new("Hierarchy Second Child Mesh")
+        hierarchy_second_mesh.from_pydata(
+            [(0.0, 0.0, 0.0), (0.25, 0.0, 0.0), (0.0, 0.25, 0.0)],
+            [],
+            [(0, 1, 2)],
+        )
+        hierarchy_second_mesh.update()
+        hierarchy_second = bpy.data.objects.new("Hierarchy Second Child", hierarchy_second_mesh)
+        bpy.context.collection.objects.link(hierarchy_second)
+        hierarchy_second.parent = hierarchy_root
+        hierarchy_second.location = (0.0, 3.0, 0.0)
+        sources.sync_all_source_visibility()
+        bpy.context.view_layer.update()
+        assert _evaluated_vertex_count(hierarchy_cloner) == 11
+        assert hierarchy_second.hide_get()
+
+        hierarchy_subdivision = hierarchy_second.modifiers.new(
+            name="Hierarchy Subdivision",
+            type="SUBSURF",
+        )
+        hierarchy_subdivision.levels = 1
+        bpy.context.view_layer.update()
+        hierarchy_modified_vertex_count = _evaluated_vertex_count(hierarchy_cloner)
+        assert hierarchy_modified_vertex_count > 11
+
+        hierarchy_grandchild = hierarchy_second.copy()
+        hierarchy_grandchild.data = hierarchy_second.data.copy()
+        hierarchy_grandchild.name = "Hierarchy Grandchild"
+        bpy.context.collection.objects.link(hierarchy_grandchild)
+        hierarchy_grandchild.parent = hierarchy_child
+        hierarchy_grandchild.location = (0.0, 0.0, 4.0)
+        sources.sync_all_source_visibility()
+        bpy.context.view_layer.update()
+        assert _evaluated_vertex_count(hierarchy_cloner) == hierarchy_modified_vertex_count
+
+        bpy.ops.object.select_all(action="DESELECT")
+        hierarchy_cloner.select_set(True)
+        bpy.context.view_layer.objects.active = hierarchy_cloner
+        bpy.ops.object.duplicate()
+        duplicated_hierarchy_cloner = bpy.context.object
+        sources.sync_all_source_visibility()
+        bpy.context.view_layer.update()
+        assert (
+            _evaluated_vertex_count(duplicated_hierarchy_cloner)
+            == hierarchy_modified_vertex_count
+        )
+        duplicated_hierarchy_roots = [
+            child
+            for child in duplicated_hierarchy_cloner.children
+            if child.type == "EMPTY"
+        ]
+        assert len(duplicated_hierarchy_roots) == 1
+        assert len(duplicated_hierarchy_roots[0].children) == 2
+
         print("CLONE_FIELDS_SMOKE_OK")
     finally:
         addon.unregister()

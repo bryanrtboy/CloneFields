@@ -84,7 +84,9 @@ Distribution objects remain visible unless you hide them manually.
 
 Parent additional source objects directly under the Cloner. Clone Fields cycles
 through child sources by clone index. Empty objects can serve as blank or spacer
-sources.
+sources. When an Empty has direct object children, Clone Fields treats those
+children as one compound source positioned relative to the Empty's anchor. This
+hierarchy traversal is limited to one level; grandchildren are not included.
 
 ### Effectors
 

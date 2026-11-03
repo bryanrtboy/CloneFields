@@ -27,6 +27,10 @@ PROP_SPACING_MODE_PREVIOUS = "clone_fields_spacing_mode_previous"
 PROP_NODE_GROUP_BUILD_VERSION = "clone_fields_node_group_build_version"
 PROP_INITIALIZING_CLONER = "clone_fields_initializing"
 GRID_NODE_GROUP_BUILD_VERSION = 35
+
+PROP_HIERARCHY_PROXY = "clone_fields_hierarchy_proxy"
+PROP_HIERARCHY_ROOT = "clone_fields_hierarchy_root"
+PROP_HIERARCHY_CHILD_SIGNATURE = "clone_fields_hierarchy_child_signature"
 EFFECTOR_STRENGTH_PERCENT_DEFAULT = 100
 
 SOCKET_GEOMETRY = "Geometry"
